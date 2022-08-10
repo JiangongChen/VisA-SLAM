@@ -20,7 +20,7 @@
 
 #include "Viewer.h"
 #include <pangolin/pangolin.h>
-
+#include<unistd.h>
 #include <mutex>
 
 namespace ORB_SLAM2
@@ -127,6 +127,13 @@ void Viewer::Run()
         d_cam.Activate(s_cam);
         glClearColor(1.0f,1.0f,1.0f,1.0f);
         mpMapDrawer->DrawCurrentCamera(Twc);
+        // draw camera of other clients
+        for(int i=1;i<mpMapDrawer->clientNum;i++){
+            pangolin::OpenGlMatrix TwcClient;
+            mpMapDrawer->GetCurrentOpenGLCameraMatrix(TwcClient);
+            mpMapDrawer->DrawCurrentCamera(TwcClient);
+        }
+
         if(menuShowKeyFrames || menuShowGraph)
             mpMapDrawer->DrawKeyFrames(menuShowKeyFrames,menuShowGraph);
         if(menuShowPoints)

@@ -1241,4 +1241,112 @@ int Optimizer::OptimizeSim3(KeyFrame *pKF1, KeyFrame *pKF2, vector<MapPoint *> &
 }
 
 
+void Optimizer::PoseOptimizationDistance(Frame *pFrame, vector<g2o::SE3Quat> groundTruth){
+    typedef g2o::BlockSolver<g2o::BlockSolverTraits<3, 1>> BlockSolverType;  // dimension for each error component is 3, error value is 1
+    typedef g2o::LinearSolverDense<BlockSolverType::PoseMatrixType> LinearSolverType; // linear solver type
+    
+    LinearSolverType * linearSolver;
+
+    linearSolver = new LinearSolverType();
+
+    BlockSolverType * solver_ptr = new BlockSolverType(linearSolver);
+
+    g2o::OptimizationAlgorithmLevenberg* solver = new g2o::OptimizationAlgorithmLevenberg(solver_ptr);
+    
+    g2o::SparseOptimizer optimizer;     // graph model
+    optimizer.setAlgorithm(solver);   // set solver
+    optimizer.setVerbose(true);       // open debug output
+
+    g2o::SE3Quat pose = Converter::toSE3Quat(pFrame->mTcw);
+
+    // use two keyframes to determine current scale
+    /*KeyFrame *kFrame = pFrame->mpReferenceKF; 
+    KeyFrame *kFrame2 = kFrame->GetBestCovisibilityKeyFrames(1)[0]; 
+    g2o::SE3Quat pose1 = Converter::toSE3Quat(kFrame->GetPose()); 
+    g2o::SE3Quat pose2 = Converter::toSE3Quat(kFrame2->GetPose()); 
+    double distTrack = (pose1.translation() - pose2.translation()).norm();
+    double distGroundTruth = (groundTruth[kFrame->mnFrameId].translation() - groundTruth[kFrame2->mnFrameId].translation()).norm();
+    double scale = distTrack/distGroundTruth; */
+
+    // use openCV random generator to generate random Gaussian noise
+    uint64_t now = chrono::duration_cast<chrono::milliseconds>(chrono::system_clock::now().time_since_epoch()).count();
+    cv::RNG rng(now); 
+
+    // vertex translation
+    VertexTran* vertex_tran = new VertexTran(); // camera vertex_pose
+    vertex_tran->setId(0);
+    vertex_tran->setEstimate(pose.translation());
+    optimizer.addVertex(vertex_tran);
+    double w_sigma = 3.0; 
+    // edges related to distance
+    for (int i = 0; i < 5; i++) {
+        Eigen::Vector3d u_pos(rng.gaussian(w_sigma * w_sigma), rng.gaussian(w_sigma * w_sigma), rng.gaussian(w_sigma * w_sigma));
+        double error_sigma = 0.01; // rng.gaussian(0.1);
+        EdgeDist* edge = new EdgeDist(u_pos);
+        edge->setId(0);
+        edge->setVertex(0, vertex_tran);
+        double dist = fabs((groundTruth[pFrame->mnId].translation() - u_pos).norm() + rng.gaussian(error_sigma)); 
+        edge->setMeasurement(dist*dist);
+        edge->setInformation(Eigen::Matrix<double, 1, 1>::Identity());
+        optimizer.addEdge(edge);
+    }
+    cout << "g2o ground truth: " << groundTruth[pFrame->mnId].translation() << endl;
+
+    optimizer.initializeOptimization();
+    optimizer.optimize(10);
+    // assign translation
+    pose = g2o::SE3Quat(pose.rotation(), vertex_tran->estimate());
+    pFrame->mTcw = Converter::toCvMat(pose); 
+    cout << "g2o optimized value: " << pose << endl;
+}
+
+void Optimizer::PoseOptimizationDistance(Eigen::Vector3d &pose_est, Eigen::Vector3d &pose_gt, cv::RNG* rng){
+    typedef g2o::BlockSolver<g2o::BlockSolverTraits<3, 1>> BlockSolverType;  // dimension for each error component is 3, error value is 1
+    typedef g2o::LinearSolverDense<BlockSolverType::PoseMatrixType> LinearSolverType; // linear solver type
+    
+    LinearSolverType * linearSolver;
+
+    linearSolver = new LinearSolverType();
+
+    BlockSolverType * solver_ptr = new BlockSolverType(linearSolver);
+
+    g2o::OptimizationAlgorithmLevenberg* solver = new g2o::OptimizationAlgorithmLevenberg(solver_ptr);
+    
+    g2o::SparseOptimizer optimizer;     // graph model
+    optimizer.setAlgorithm(solver);   // set solver
+    //optimizer.setVerbose(true);       // open debug output
+
+    if (!rng) {
+        // use openCV random generator to generate random Gaussian noise
+        uint64_t now = chrono::duration_cast<chrono::milliseconds>(chrono::system_clock::now().time_since_epoch()).count();
+        rng = new cv::RNG(now);
+    } 
+
+    // vertex translation
+    VertexTran* vertex_tran = new VertexTran(); // camera vertex_pose
+    vertex_tran->setId(0);
+    vertex_tran->setEstimate(pose_est);
+    optimizer.addVertex(vertex_tran);
+    double w_sigma = 3.0; 
+    // edges related to distance
+    for (int i = 0; i < 5; i++) {
+        Eigen::Vector3d u_pos(rng->gaussian(w_sigma * w_sigma), rng->gaussian(w_sigma * w_sigma), rng->gaussian(w_sigma * w_sigma));
+        double error_sigma = 0.01; // rng.gaussian(0.1);
+        EdgeDist* edge = new EdgeDist(u_pos);
+        edge->setId(0);
+        edge->setVertex(0, vertex_tran);
+        double dist = fabs((pose_gt - u_pos).norm() + rng->gaussian(error_sigma)); 
+        edge->setMeasurement(dist*dist);
+        edge->setInformation(Eigen::Matrix<double, 1, 1>::Identity());
+        optimizer.addEdge(edge);
+    }
+    //cout << "g2o ground truth: " << pose_gt.transpose() << endl;
+
+    optimizer.initializeOptimization();
+    optimizer.optimize(10);
+    // assign translation
+    pose_est =  vertex_tran->estimate();
+    //cout << "g2o optimized value: " << pose_est.transpose() << endl;
+}
+
 } //namespace ORB_SLAM

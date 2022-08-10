@@ -56,7 +56,7 @@ System::System(const string &strVocFile, const string &strSettingsFile, const eS
        cerr << "Failed to open settings file at: " << strSettingsFile << endl;
        exit(-1);
     }
-
+    strSettingsFilePath = strSettingsFile; 
 
     //Load ORB Vocabulary
     cout << endl << "Loading ORB Vocabulary. This could take a while..." << endl;
@@ -106,11 +106,35 @@ System::System(const string &strVocFile, const string &strSettingsFile, const eS
     mpTracker->SetLocalMapper(mpLocalMapper);
     mpTracker->SetLoopClosing(mpLoopCloser);
 
-    mpLocalMapper->SetTracker(mpTracker);
+    //mpLocalMapper->SetTracker(mpTracker);
+    mpLocalMapper->AddTracker(mpTracker); 
     mpLocalMapper->SetLoopCloser(mpLoopCloser);
 
-    mpLoopCloser->SetTracker(mpTracker);
+    //mpLoopCloser->SetTracker(mpTracker);
+    mpLoopCloser->AddTracker(mpTracker); 
     mpLoopCloser->SetLocalMapper(mpLocalMapper);
+
+    // add to the vector of tracking pointers
+    mpTrackerAllClients.push_back(mpTracker); 
+}
+
+void System::AddClient(int clientID){
+    // skip the first client since it is already done in initialization
+    if (clientID == 0) return; 
+
+    //Initialize the Tracking thread
+    Tracking* mpTrackerClient = new Tracking(this, mpVocabulary, mpFrameDrawer, mpMapDrawer,
+                             mpMap, mpKeyFrameDatabase, strSettingsFilePath, mSensor);
+    if(mpViewer!=nullptr) mpTrackerClient->SetViewer(mpViewer);
+    mpTrackerClient->SetLocalMapper(mpLocalMapper);
+    mpTrackerClient->SetLoopClosing(mpLoopCloser);
+
+    mpLocalMapper->AddTracker(mpTrackerClient); 
+    mpLoopCloser->AddTracker(mpTrackerClient); 
+
+    // add client tracking and make sure it is in order
+    mpTrackerAllClients.push_back(mpTrackerClient); 
+    mpTrackerAllClients[clientID] = mpTrackerClient;
 }
 
 cv::Mat System::TrackStereo(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timestamp)
@@ -267,6 +291,68 @@ cv::Mat System::TrackMonocular(const cv::Mat &im, const double &timestamp)
     return Tcw;
 }
 
+cv::Mat System::TrackEdge(Frame* frame)
+{
+    if(mSensor!=MONOCULAR)
+    {
+        cerr << "ERROR: you called TrackMonocular but input sensor was not set to Monocular." << endl;
+        exit(-1);
+    }
+
+    if (mpTrackerAllClients.size() <= frame->clientId){
+        cerr << "ERROR: missed tracking thread." << endl;
+        exit(-1); 
+    }
+
+    int client_id = frame->clientId; 
+    Tracking* mpTrackerClient = mpTrackerAllClients[client_id]; 
+
+    // Check mode change
+    {
+        unique_lock<mutex> lock(mMutexMode);
+        if(mbActivateLocalizationMode)
+        {
+            mpLocalMapper->RequestStop();
+
+            // Wait until Local Mapping has effectively stopped
+            while(!mpLocalMapper->isStopped())
+            {
+                usleep(1000);
+            }
+
+            mpTrackerClient->InformOnlyTracking(true);
+            mbActivateLocalizationMode = false;
+        }
+        if(mbDeactivateLocalizationMode)
+        {
+            mpTrackerClient->InformOnlyTracking(false);
+            mpLocalMapper->Release();
+            mbDeactivateLocalizationMode = false;
+        }
+    }
+
+    // Check reset
+    {
+    unique_lock<mutex> lock(mMutexReset);
+    if(mbReset)
+    {
+        mpTrackerClient->Reset();
+        mbReset = false;
+    }
+    }
+
+    cv::Mat Tcw = mpTrackerClient->GrabImageEdge(frame);
+
+    if (client_id==0){
+        unique_lock<mutex> lock2(mMutexState);
+        mTrackingState = mpTrackerClient->mState;
+        mTrackedMapPoints = mpTrackerClient->mCurrentFrame.mvpMapPoints;
+        mTrackedKeyPointsUn = mpTrackerClient->mCurrentFrame.mvKeysUn;
+    }
+
+    return Tcw;
+}
+
 void System::ActivateLocalizationMode()
 {
     unique_lock<mutex> lock(mMutexMode);
@@ -308,15 +394,16 @@ void System::Shutdown()
         while(!mpViewer->isFinished())
             usleep(5000);
     }
-
+    cout << "viewer stopped" << endl;
     // Wait until all thread have effectively stopped
     while(!mpLocalMapper->isFinished() || !mpLoopCloser->isFinished() || mpLoopCloser->isRunningGBA())
+    //while (!mpLocalMapper->isFinished())
     {
         usleep(5000);
     }
-
-    if(mpViewer)
-        pangolin::BindToContext("ORB-SLAM2: Map Viewer");
+    cout << "local mapper stopped" << endl; 
+    //if(mpViewer)
+    //    pangolin::BindToContext("ORB-SLAM2: Map Viewer");
 }
 
 void System::SaveTrajectoryTUM(const string &filename)

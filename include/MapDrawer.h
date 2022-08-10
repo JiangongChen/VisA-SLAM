@@ -41,9 +41,16 @@ public:
     void DrawMapPoints();
     void DrawKeyFrames(const bool bDrawKF, const bool bDrawGraph);
     void DrawCurrentCamera(pangolin::OpenGlMatrix &Twc);
+    // set the pose of client 0 
     void SetCurrentCameraPose(const cv::Mat &Tcw);
+    // update current camera pose for specific client
+    void SetCurrentCameraPoseClient(int clientID, const cv::Mat &Tcw); 
     void SetReferenceKeyFrame(KeyFrame *pKF);
     void GetCurrentOpenGLCameraMatrix(pangolin::OpenGlMatrix &M);
+    void GetCurrentOpenGLCameraMatrixClient(int clientID, pangolin::OpenGlMatrix &M);
+
+    // number of clients
+    int clientNum=0; 
 
 private:
 
@@ -55,6 +62,8 @@ private:
     float mCameraLineWidth;
 
     cv::Mat mCameraPose;
+    // store camera poses for all clients
+    vector<cv::Mat> mCameraPoseAllClients; 
 
     std::mutex mMutexCamera;
 };

@@ -25,6 +25,7 @@
 #include<string>
 #include<thread>
 #include<opencv2/core/core.hpp>
+#include<unistd.h>
 
 #include "Tracking.h"
 #include "FrameDrawer.h"
@@ -61,6 +62,11 @@ public:
     // Initialize the SLAM system. It launches the Local Mapping, Loop Closing and Viewer threads.
     System(const string &strVocFile, const string &strSettingsFile, const eSensor sensor, const bool bUseViewer = true);
 
+    // add a new client, initialize tracking thread
+    void AddClient(int clientID); 
+
+    Tracking* GetTracker(int clientID); 
+
     // Proccess the given stereo frame. Images must be synchronized and rectified.
     // Input images: RGB (CV_8UC3) or grayscale (CV_8U). RGB is converted to grayscale.
     // Returns the camera pose (empty if tracking fails).
@@ -76,6 +82,10 @@ public:
     // Input images: RGB (CV_8UC3) or grayscale (CV_8U). RGB is converted to grayscale.
     // Returns the camera pose (empty if tracking fails).
     cv::Mat TrackMonocular(const cv::Mat &im, const double &timestamp);
+
+    // process the fake frame received from client
+    // Returns the camera pose (empty if tracking fails).
+    cv::Mat TrackEdge(Frame* frame);
 
     // This stops local mapping thread (map building) and performs only camera tracking.
     void ActivateLocalizationMode();
@@ -122,10 +132,17 @@ public:
     std::vector<MapPoint*> GetTrackedMapPoints();
     std::vector<cv::KeyPoint> GetTrackedKeyPointsUn();
 
+    ORBVocabulary* getVocabulary(){
+        return mpVocabulary; 
+    }
+    
 private:
 
     // Input sensor
     eSensor mSensor;
+
+    // setting file path
+    string strSettingsFilePath; 
 
     // ORB vocabulary used for place recognition and feature matching.
     ORBVocabulary* mpVocabulary;
@@ -140,6 +157,7 @@ private:
     // It also decides when to insert a new keyframe, create some new MapPoints and
     // performs relocalization if tracking fails.
     Tracking* mpTracker;
+    vector<Tracking*> mpTrackerAllClients; 
 
     // Local Mapper. It manages the local map and performs local bundle adjustment.
     LocalMapping* mpLocalMapper;

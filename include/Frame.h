@@ -57,6 +57,9 @@ public:
     // Constructor for Monocular cameras.
     Frame(const cv::Mat &imGray, const double &timeStamp, ORBextractor* extractor,ORBVocabulary* voc, cv::Mat &K, cv::Mat &distCoef, const float &bf, const float &thDepth);
 
+    // Constructor for given keypoints and descriptors, no image
+    Frame(const vector<cv::KeyPoint> &keypoints, const cv::Mat &descriptors, int frameID, int clientID, int gtID, ORBextractor* extractor, ORBVocabulary* voc, cv::Mat &K, cv::Mat &distCoef, const float &bf, const float &thDepth);
+
     // Extract ORB on the image. 0 for left image and 1 for right image.
     void ExtractORB(int flag, const cv::Mat &im);
 
@@ -167,6 +170,12 @@ public:
     static long unsigned int nNextId;
     long unsigned int mnId;
 
+    // indicates to which client this frame belongs
+    int clientId; 
+
+    // indicates whether it is ground truth point, which ground truth
+    int groundTruthID = 0; 
+
     // Reference Keyframe.
     KeyFrame* mpReferenceKF;
 
@@ -196,7 +205,8 @@ private:
     void UndistortKeyPoints();
 
     // Computes image bounds for the undistorted image (called in the constructor).
-    void ComputeImageBounds(const cv::Mat &imLeft);
+    void ComputeImageBounds();
+    void ComputeImageBounds(const cv::Mat &imgLeft);
 
     // Assign keypoints to the grid for speed up feature matching (called in the constructor).
     void AssignFeaturesToGrid();

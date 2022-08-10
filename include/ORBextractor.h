@@ -24,6 +24,7 @@
 #include <vector>
 #include <list>
 #include <opencv/cv.h>
+#include <opencv2/features2d/features2d.hpp>
 
 
 namespace ORB_SLAM2
@@ -85,6 +86,7 @@ public:
     std::vector<cv::Mat> mvImagePyramid;
 
 protected:
+    cv::Ptr<cv::ORB> orb_;  // orb detector and computer
 
     void ComputePyramid(cv::Mat image);
     void ComputeKeyPointsOctTree(std::vector<std::vector<cv::KeyPoint> >& allKeypoints);    

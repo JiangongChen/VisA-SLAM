@@ -36,13 +36,12 @@ void LoadImages(const string &strFile, vector<string> &vstrImageFilenames,
 void LoadGroundTruth(const string &strFile, vector<cv::Mat> &gtTraj); 
 void DrawTrajectory(const vector<cv::Mat> & esti, const vector<cv::Mat>& gt);
 void SaveTrajectory(const string& filename, const vector<cv::Mat>& trajectory, vector<double> timeStamps);
-void SaveTracktime(const string& filename, vector<float> trackTimes);
 
 int main(int argc, char **argv)
 {
     if(argc != 4)
     {
-        cerr << endl << "Usage: ./mono_tum path_to_vocabulary path_to_settings path_to_sequence" << endl;
+        cerr << endl << "Usage: ./mono_pixel path_to_vocabulary path_to_settings path_to_sequence" << endl;
         return 1;
     }
 
@@ -54,7 +53,7 @@ int main(int argc, char **argv)
     // Retrieve paths to images
     vector<string> vstrImageFilenames;
     vector<double> vTimestamps;
-    string strFile = string(argv[3])+"/rgb.txt";
+    string strFile = string(argv[3])+"/associate.txt";
     LoadImages(strFile, vstrImageFilenames, vTimestamps);
 
     int nImages = vstrImageFilenames.size();
@@ -125,15 +124,14 @@ int main(int argc, char **argv)
     // Stop all threads
     SLAM.Shutdown();
 
-    cout << "-------" << endl << endl;
     // Tracking time statistics
-    SaveTracktime("allTracktime.txt",vTimesTrack); 
     sort(vTimesTrack.begin(),vTimesTrack.end());
     float totaltime = 0;
     for(int ni=0; ni<nImages; ni++)
     {
         totaltime+=vTimesTrack[ni];
     }
+    cout << "-------" << endl << endl;
     cout << "median tracking time: " << vTimesTrack[nImages/2] << endl;
     cout << "mean tracking time: " << totaltime/nImages << endl;
 
@@ -277,17 +275,4 @@ void SaveTrajectory(const string & filename, const vector<cv::Mat>&trajectory, v
 
     f.close();
     cout << endl << "all trajectory saved!" << endl;
-}
-
-void SaveTracktime(const string& filename, vector<float> trackTimes){
-    ofstream f;
-    f.open(filename.c_str());
-    f << fixed;
-    for (size_t i = 0; i < trackTimes.size(); i++)
-    {
-        f << setprecision(6) << trackTimes[i] << endl;
-    }
-
-    f.close();
-    cout << endl << "all tracking time saved!" << endl;
 }

@@ -28,21 +28,20 @@
 
 #include<System.h>
 #include<Converter.h>
+#include<server.h>
+#include<Frame.h>
 
 using namespace std;
 
-void LoadImages(const string &strFile, vector<string> &vstrImageFilenames,
-                vector<double> &vTimestamps);
 void LoadGroundTruth(const string &strFile, vector<cv::Mat> &gtTraj); 
-void DrawTrajectory(const vector<cv::Mat> & esti, const vector<cv::Mat>& gt);
-void SaveTrajectory(const string& filename, const vector<cv::Mat>& trajectory, vector<double> timeStamps);
-void SaveTracktime(const string& filename, vector<float> trackTimes);
+void DrawTrajectory(const vector<cv::Mat> & esti, const vector<cv::Mat>& gt, vector<int> gt_points);
+void SaveTrajectory(const string& filename, const vector<cv::Mat>& trajectory, vector<double> timeStamps, vector<int> trajGTpts);
 
 int main(int argc, char **argv)
 {
-    if(argc != 4)
+    if(argc != 3)
     {
-        cerr << endl << "Usage: ./mono_tum path_to_vocabulary path_to_settings path_to_sequence" << endl;
+        cerr << endl << "Usage: ./mono_pixel path_to_vocabulary path_to_settings" << endl;
         return 1;
     }
 
@@ -51,130 +50,76 @@ int main(int argc, char **argv)
     //vector<cv::Mat> gtTrajectory; 
     //LoadGroundTruth(strGt, gtTrajectory);
 
-    // Retrieve paths to images
-    vector<string> vstrImageFilenames;
-    vector<double> vTimestamps;
-    string strFile = string(argv[3])+"/rgb.txt";
-    LoadImages(strFile, vstrImageFilenames, vTimestamps);
-
-    int nImages = vstrImageFilenames.size();
 
     // Create SLAM system. It initializes all system threads and gets ready to process frames.
-    ORB_SLAM2::System SLAM(argv[1],argv[2],ORB_SLAM2::System::MONOCULAR,true);
+    ORB_SLAM2::System *SLAM = new ORB_SLAM2::System(argv[1],argv[2],ORB_SLAM2::System::MONOCULAR,true);
 
     // Vector for tracking time statistics
-    vector<float> vTimesTrack;
-    vTimesTrack.resize(nImages);
+    vector<double> vTimesTrack;
     vector<cv::Mat> trajectory; 
-    trajectory.resize(nImages); 
+    vector<double> vTimestamps; 
+    vector<int> trajectory_gt_points; 
 
     cout << endl << "-------" << endl;
-    cout << "Start processing sequence ..." << endl;
-    cout << "Images in the sequence: " << nImages << endl << endl;
 
     // Main loop
-    cv::Mat im;
-    for (int ni = 0; ni < nImages; ni++)
-    {
-        // Read image from file
-        im = cv::imread(string(argv[3]) + "/" + vstrImageFilenames[ni], CV_LOAD_IMAGE_UNCHANGED);
-        double tframe = vTimestamps[ni];
+    Server* server = new Server(argv[2], SLAM); 
 
-        if (im.empty())
-        {
-            cerr << endl << "Failed to load image at: "
-                << string(argv[3]) << "/" << vstrImageFilenames[ni] << endl;
-            return 1;
+    server->StartListening(); 
+    while(server->listenFlag){
+        if (server->CheckNewFrame()){
+            #ifdef COMPILEDWITHC11
+                    std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
+            #else
+                    std::chrono::monotonic_clock::time_point t1 = std::chrono::monotonic_clock::now();
+            #endif
+            ORB_SLAM2::Frame* im= server->GetNewFrame();  
+            im->mpORBvocabulary = SLAM->getVocabulary(); // update the vocabulary since we set an empty one before 
+            cout << "frame id: " << im->mnId << endl;  
+            cv::Mat tcw = SLAM->TrackEdge(im);
+            #ifdef COMPILEDWITHC11
+                    std::chrono::steady_clock::time_point t2 = std::chrono::steady_clock::now();
+            #else
+                    std::chrono::monotonic_clock::time_point t2 = std::chrono::monotonic_clock::now();
+            #endif
+            double ttrack= std::chrono::duration_cast<std::chrono::duration<double> >(t2 - t1).count();
+            trajectory.push_back(tcw); 
+            vTimesTrack.push_back(ttrack); 
+            vTimestamps.push_back(im->mTimeStamp);
+            trajectory_gt_points.push_back(im->groundTruthID);
         }
-        cout << "frame number: " << ni << endl;
-#ifdef COMPILEDWITHC11
-        std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
-#else
-        std::chrono::monotonic_clock::time_point t1 = std::chrono::monotonic_clock::now();
-#endif
-
-        // Pass the image to the SLAM system
-        cv::Mat tcw = SLAM.TrackMonocular(im, tframe);
-        /*if (!tcw.empty()) {
-            Eigen::Vector3d tran(tcw.at<float>(0, 3), tcw.at<float>(1, 3), tcw.at<float>(2, 3));
-            trajectory.push_back(tran);
-        }*/
-        trajectory[ni] = tcw; 
-
-#ifdef COMPILEDWITHC11
-        std::chrono::steady_clock::time_point t2 = std::chrono::steady_clock::now();
-#else
-        std::chrono::monotonic_clock::time_point t2 = std::chrono::monotonic_clock::now();
-#endif
-
-        double ttrack= std::chrono::duration_cast<std::chrono::duration<double> >(t2 - t1).count();
-
-        vTimesTrack[ni]=ttrack;
-
-        // Wait to load the next frame
-        double T=0;
-        if(ni<nImages-1)
-            T = vTimestamps[ni+1]-tframe;
-        else if(ni>0)
-            T = tframe-vTimestamps[ni-1];
-
-        if(ttrack<T)
-            usleep((T-ttrack)*1e6);
+        else
+            usleep(3000); 
     }
+
+    // request close of the server
+    server->Close(); 
+
     cout << "request stop thread" << endl; 
     // Stop all threads
-    SLAM.Shutdown();
+    SLAM->Shutdown();
 
-    cout << "-------" << endl << endl;
     // Tracking time statistics
-    SaveTracktime("allTracktime.txt",vTimesTrack); 
+    int nImages = vTimesTrack.size(); 
     sort(vTimesTrack.begin(),vTimesTrack.end());
     float totaltime = 0;
     for(int ni=0; ni<nImages; ni++)
     {
         totaltime+=vTimesTrack[ni];
     }
+    cout << "-------" << endl << endl;
     cout << "median tracking time: " << vTimesTrack[nImages/2] << endl;
     cout << "mean tracking time: " << totaltime/nImages << endl;
 
     //draw and save the trajectory
     vector<cv::Mat> gt; 
-    DrawTrajectory(trajectory, gt);
-    SaveTrajectory("allTrajectory.txt",trajectory,vTimestamps);
+    DrawTrajectory(trajectory, gt, trajectory_gt_points);
+    SaveTrajectory("allTrajectory.txt",trajectory,vTimestamps,trajectory_gt_points);
 
     // Save camera trajectory
-    SLAM.SaveKeyFrameTrajectoryTUM("KeyFrameTrajectory.txt");
+    SLAM->SaveKeyFrameTrajectoryTUM("KeyFrameTrajectory.txt");
 
     return 0;
-}
-
-void LoadImages(const string &strFile, vector<string> &vstrImageFilenames, vector<double> &vTimestamps)
-{
-    ifstream f;
-    f.open(strFile.c_str());
-
-    // skip first three lines
-    string s0;
-    getline(f,s0);
-    getline(f,s0);
-    getline(f,s0);
-
-    while(!f.eof())
-    {
-        string s;
-        getline(f,s);
-        if(!s.empty())
-        {
-            stringstream ss;
-            ss << s;
-            double t;
-            string sRGB;
-            ss >> t;
-            vTimestamps.push_back(t);
-            ss >> sRGB;
-            vstrImageFilenames.push_back(sRGB);
-        }
-    }
 }
 
 void LoadGroundTruth(const string& strFile, vector<cv::Mat>& gtTraj) {
@@ -200,7 +145,7 @@ void LoadGroundTruth(const string& strFile, vector<cv::Mat>& gtTraj) {
     fin.close();
 }
 
-void DrawTrajectory(const vector<cv::Mat>& esti, const vector<cv::Mat>& gt) {
+void DrawTrajectory(const vector<cv::Mat>& esti, const vector<cv::Mat>& gt, vector<int> gt_points) {
     // create pangolin window and plot the trajectory
     pangolin::CreateWindowAndBind("Trajectory Viewer", 1024, 768);
     glEnable(GL_DEPTH_TEST);
@@ -245,7 +190,14 @@ void DrawTrajectory(const vector<cv::Mat>& esti, const vector<cv::Mat>& gt) {
             cv::Mat tcw = esti[i];
             cv::Mat tcw2 = esti[i + 1];
             if (tcw.empty()||tcw2.empty()) continue;
-            glColor3f(1.0f, 0.0f, 0.0f);  // red for estimated
+            if (gt_points[i] == 0){
+                glLineWidth(2);
+                glColor3f(1.0f, 0.0f, 0.0f);  // red for estimated
+            }
+            else {
+                glLineWidth(6);
+                glColor3f(0.0f, 0.0f, 1.0f); // blue for annotated ground truth measurement points
+            }
             glBegin(GL_LINES);
             cv::Mat t = -tcw.rowRange(0, 3).colRange(0, 3).t() * tcw.rowRange(0, 3).col(3);
             Eigen::Vector3d p1(t.at<float>(0), t.at<float>(1), t.at<float>(2));
@@ -260,9 +212,10 @@ void DrawTrajectory(const vector<cv::Mat>& esti, const vector<cv::Mat>& gt) {
     }
 }
 
-void SaveTrajectory(const string & filename, const vector<cv::Mat>&trajectory, vector<double> timeStamps) {
+void SaveTrajectory(const string & filename, const vector<cv::Mat>&trajectory, vector<double> timeStamps, vector<int> trajGTpts) {
     ofstream f;
     f.open(filename.c_str());
+    f << "# timeStamp tx ty tz qx qy qz qw groundTruthPoints" << endl; 
     f << fixed;
     for (size_t i = 0; i < trajectory.size(); i++)
     {
@@ -272,22 +225,9 @@ void SaveTrajectory(const string & filename, const vector<cv::Mat>&trajectory, v
         vector<float> q = ORB_SLAM2::Converter::toQuaternion(R);
         cv::Mat t = -R * tcw.rowRange(0, 3).col(3);
         f << setprecision(6) << timeStamps[i] << setprecision(7) << " " << t.at<float>(0) << " " << t.at<float>(1) << " " << t.at<float>(2)
-            << " " << q[0] << " " << q[1] << " " << q[2] << " " << q[3] << endl;
+            << " " << q[0] << " " << q[1] << " " << q[2] << " " << q[3] << " " << trajGTpts[i] << endl;
     }
 
     f.close();
     cout << endl << "all trajectory saved!" << endl;
-}
-
-void SaveTracktime(const string& filename, vector<float> trackTimes){
-    ofstream f;
-    f.open(filename.c_str());
-    f << fixed;
-    for (size_t i = 0; i < trackTimes.size(); i++)
-    {
-        f << setprecision(6) << trackTimes[i] << endl;
-    }
-
-    f.close();
-    cout << endl << "all tracking time saved!" << endl;
 }

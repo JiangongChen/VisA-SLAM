@@ -68,6 +68,8 @@ src/KeyFrameDatabase.cc
 src/Sim3Solver.cc
 src/Initializer.cc
 src/Viewer.cc
+src/server.cc
+src/client.cc
 )
 
 target_link_libraries(${PROJECT_NAME}
@@ -99,6 +101,18 @@ target_link_libraries(stereo_euroc ${PROJECT_NAME})
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/Examples/Monocular)
 
+add_executable(mono_edge
+Examples/Monocular/mono_edge.cc)
+target_link_libraries(mono_edge ${PROJECT_NAME})
+
+add_executable(mono_acoustic
+Examples/Monocular/mono_acousticonly.cc)
+target_link_libraries(mono_acoustic ${PROJECT_NAME})
+
+add_executable(mono_pixel
+Examples/Monocular/mono_pixel.cc)
+target_link_libraries(mono_pixel ${PROJECT_NAME})
+
 add_executable(mono_tum
 Examples/Monocular/mono_tum.cc)
 target_link_libraries(mono_tum ${PROJECT_NAME})
@@ -110,4 +124,15 @@ target_link_libraries(mono_kitti ${PROJECT_NAME})
 add_executable(mono_euroc
 Examples/Monocular/mono_euroc.cc)
 target_link_libraries(mono_euroc ${PROJECT_NAME})
+
+add_executable(socket_test
+Examples/Monocular/socket_test.cc)
+target_link_libraries(socket_test ${PROJECT_NAME})
+
+
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/Examples)
+
+add_executable(draw_traj
+Examples/draw_traj.cc)
+target_link_libraries(draw_traj ${PROJECT_NAME})
 

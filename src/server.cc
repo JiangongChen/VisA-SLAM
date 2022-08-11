@@ -37,7 +37,7 @@ Server::Server():
 }
 
 Server::Server(const string &strSettingsFile, ORB_SLAM2::System *sys):
-    client_num(0), max_client_num(1), opt(1), listenFlag(true){
+    client_num(0), max_client_num(2), opt(1), listenFlag(true){
     // initialize the server
     //hello = "Hello from server";
     settingFile = strSettingsFile; 

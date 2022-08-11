@@ -124,7 +124,7 @@ void System::AddClient(int clientID){
 
     //Initialize the Tracking thread
     Tracking* mpTrackerClient = new Tracking(this, mpVocabulary, mpFrameDrawer, mpMapDrawer,
-                             mpMap, mpKeyFrameDatabase, strSettingsFilePath, mSensor);
+                             mpMap, mpKeyFrameDatabase, strSettingsFilePath, mSensor, clientID);
     if(mpViewer!=nullptr) mpTrackerClient->SetViewer(mpViewer);
     mpTrackerClient->SetLocalMapper(mpLocalMapper);
     mpTrackerClient->SetLoopClosing(mpLoopCloser);

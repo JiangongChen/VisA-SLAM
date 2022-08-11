@@ -7,7 +7,11 @@
         "iosfwd": "cpp",
         "iterator": "cpp",
         "*.ipp": "cpp",
+<<<<<<< HEAD
         "filesystem": "cpp",
         "chrono": "cpp"
+=======
+        "filesystem": "cpp"
+>>>>>>> f9331e888fb75863ad2dfb5b7b2d320ecdaf61e6
     }
 }

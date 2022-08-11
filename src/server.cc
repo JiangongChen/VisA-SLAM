@@ -95,7 +95,7 @@ void Server::Listening(){
         }
         // client id starts from 0 
         // add new tracking thread in SLAM system
-        system->AddClient(client_num); 
+        //system->AddClient(client_num); 
         Client* client = new Client(client_num,new_socket,settingFile,this);
         clients.push_back(client);
         std::cout << "client " << client_num << "has been accepted" << std::endl; 

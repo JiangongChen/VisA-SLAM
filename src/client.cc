@@ -50,13 +50,18 @@ id_(id), connfd_(connfd), recvFlag(true) {
 
     extractor_ = new ORB_SLAM2::ORBextractor(nFeatures,fScaleFactor,nLevels,fIniThFAST,fMinThFAST);
 
+    // add new tracking thread in SLAM system
+    server_->system->AddClient(id_); 
+
     client_thread_ = std::thread(&Client::receiveLoop,this); 
+    tracking_thread_ = std::thread(&Client::trackLoop,this);
 }
 
 void Client::Close(){
     recvFlag = false; 
     close(connfd_);
     //client_thread_.join();
+    tracking_thread_.join();
 }
 
 // fd: file descriptor
@@ -99,11 +104,60 @@ void Client::receiveLoop() {
         cv::Mat descriptors_ = pkt->getDescriptors();
         int frameID = pkt->getFrameId(); 
         int gtID = pkt->getGroundTruthId(); 
-        ORB_SLAM2::Frame* frame = new ORB_SLAM2::Frame(keypoints_, descriptors_, frameID, id_, gtID, extractor_, new ORB_SLAM2::ORBVocabulary(), mK, mDistCoef, mbf, mThDepth);
-        server_->InsertFrame(frame); 
+        ORB_SLAM2::Frame* frame = new ORB_SLAM2::Frame(keypoints_, descriptors_, frameID, id_, gtID, extractor_, server_->system->getVocabulary(), mK, mDistCoef, mbf, mThDepth);
+        //server_->InsertFrame(frame); 
+        InsertFrame(frame); 
 
         //cout << "frame id " << frameID << endl;
         //cout << "keypoints " << keypoints_[10].pt << " " << keypoints_[71].pt << endl;
         //cout << "descriptors " << descriptors_.row(10) << endl;
     }
+}
+
+void Client::trackLoop(){
+    while(recvFlag){
+        if (CheckNewFrame()){
+            #ifdef COMPILEDWITHC11
+                    std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
+            #else
+                    std::chrono::monotonic_clock::time_point t1 = std::chrono::monotonic_clock::now();
+            #endif
+            ORB_SLAM2::Frame* im= GetNewFrame();  
+            int clientID = im->clientId; 
+            cout << "client: " << clientID << " frame id: " << im->mnId << endl;  
+            cv::Mat tcw = server_->system->TrackEdge(im);
+            #ifdef COMPILEDWITHC11
+                    std::chrono::steady_clock::time_point t2 = std::chrono::steady_clock::now();
+            #else
+                    std::chrono::monotonic_clock::time_point t2 = std::chrono::monotonic_clock::now();
+            #endif
+            double ttrack= std::chrono::duration_cast<std::chrono::duration<double> >(t2 - t1).count();
+            trajectory.push_back(tcw); 
+            vTimesTrack.push_back(ttrack); 
+            vTimestamps.push_back(im->mTimeStamp);
+            trajectory_gt_points.push_back(im->groundTruthID);
+        }
+        else
+            usleep(3000); 
+    }
+}
+
+void Client::InsertFrame(ORB_SLAM2::Frame *pF)
+{
+    unique_lock<mutex> lock(mMutexClient);
+    mlNewFrames.push_back(pF);
+}
+
+bool Client::CheckNewFrame()
+{
+    unique_lock<mutex> lock(mMutexClient);
+    return(!mlNewFrames.empty());
+}
+
+ORB_SLAM2::Frame* Client::GetNewFrame()
+{
+    unique_lock<mutex> lock(mMutexClient);
+    ORB_SLAM2::Frame* mpCurrentFrame = mlNewFrames.front();
+    mlNewFrames.pop_front();
+    return mpCurrentFrame; 
 }

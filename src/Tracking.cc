@@ -543,8 +543,9 @@ void Tracking::Track()
         // add acoustic ranging update pose model here
 
 
-        // Update drawer
-        mpFrameDrawer->Update(this);
+        // Update drawer for the first client
+        if (clientID==0)
+            mpFrameDrawer->Update(this);
 
         // If tracking were good, check if we insert a keyframe
         if(bOK)
@@ -562,7 +563,7 @@ void Tracking::Track()
 
             if (clientID==0)
                 mpMapDrawer->SetCurrentCameraPose(mCurrentFrame.mTcw);
-            mpMapDrawer->SetCurrentCameraPoseClient(clientID,mCurrentFrame.mTcw);
+            mpMapDrawer->SetCurrentCameraPose(clientID,mCurrentFrame.mTcw);
 
             // Clean VO matches
             for(int i=0; i<mCurrentFrame.N; i++)
@@ -599,8 +600,8 @@ void Tracking::Track()
             }
         }
 
-        // Reset if the camera get lost soon after initialization
-        if(mState==LOST)
+        // Reset if the camera get lost soon after initialization, only for client 0
+        if(mState==LOST && clientID==0)
         {
             if(mpMap->KeyFramesInMap()<=5)
             {
@@ -625,9 +626,9 @@ void Tracking::Track()
         mlFrameTimes.push_back(mCurrentFrame.mTimeStamp);
         mlbLost.push_back(mState==LOST);
     }
-    else
+    else if (!mlRelativeFramePoses.empty()) // for multiple users, since it starts with LOST state, it is possible that mlRelativeFramePoses is empty, leading to crash
     {
-        // This can happen if tracking is lost
+        // This can happen if tracking is lost, i.e., mTcw is empty
         mlRelativeFramePoses.push_back(mlRelativeFramePoses.back());
         mlpReferences.push_back(mlpReferences.back());
         mlFrameTimes.push_back(mlFrameTimes.back());
@@ -862,7 +863,7 @@ void Tracking::CreateInitialMapMonocular()
 
     if (clientID==0)
         mpMapDrawer->SetCurrentCameraPose(pKFcur->GetPose());
-    mpMapDrawer->SetCurrentCameraPoseClient(clientID,pKFcur->GetPose());
+    mpMapDrawer->SetCurrentCameraPose(clientID,pKFcur->GetPose());
 
     mpMap->mvpKeyFrameOrigins.push_back(pKFini);
 

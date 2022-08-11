@@ -41,13 +41,15 @@ public:
     void DrawMapPoints();
     void DrawKeyFrames(const bool bDrawKF, const bool bDrawGraph);
     void DrawCurrentCamera(pangolin::OpenGlMatrix &Twc);
+    // for different clients, draw the camera with different colors 
+    void DrawCurrentCamera(int id, pangolin::OpenGlMatrix &Twc);
     // set the pose of client 0 
     void SetCurrentCameraPose(const cv::Mat &Tcw);
     // update current camera pose for specific client
-    void SetCurrentCameraPoseClient(int clientID, const cv::Mat &Tcw); 
+    void SetCurrentCameraPose(int clientID, const cv::Mat &Tcw); 
     void SetReferenceKeyFrame(KeyFrame *pKF);
     void GetCurrentOpenGLCameraMatrix(pangolin::OpenGlMatrix &M);
-    void GetCurrentOpenGLCameraMatrixClient(int clientID, pangolin::OpenGlMatrix &M);
+    void GetCurrentOpenGLCameraMatrix(int clientID, pangolin::OpenGlMatrix &M);
 
     // number of clients
     int clientNum=0; 

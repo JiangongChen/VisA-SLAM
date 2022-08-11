@@ -130,8 +130,8 @@ void Viewer::Run()
         // draw camera of other clients
         for(int i=1;i<mpMapDrawer->clientNum;i++){
             pangolin::OpenGlMatrix TwcClient;
-            mpMapDrawer->GetCurrentOpenGLCameraMatrix(TwcClient);
-            mpMapDrawer->DrawCurrentCamera(TwcClient);
+            mpMapDrawer->GetCurrentOpenGLCameraMatrix(i, TwcClient);
+            mpMapDrawer->DrawCurrentCamera(i, TwcClient);
         }
 
         if(menuShowKeyFrames || menuShowGraph)

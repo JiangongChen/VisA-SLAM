@@ -1,3 +1,9 @@
+# VisA-SLAM
+Build upon ORB-SLAM2 
+Modification centres on the Monocular part
+Extend to multiple users
+Improve accuracy through acoustic ranging
+
 # ORB-SLAM2
 **Authors:** [Raul Mur-Artal](http://webdiis.unizar.es/~raulmur/), [Juan D. Tardos](http://webdiis.unizar.es/~jdtardos/), [J. M. M. Montiel](http://webdiis.unizar.es/~josemari/) and [Dorian Galvez-Lopez](http://doriangalvez.com/) ([DBoW2](https://github.com/dorian3d/DBoW2))
 

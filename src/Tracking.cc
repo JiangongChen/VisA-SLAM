@@ -620,6 +620,11 @@ void Tracking::Track()
     // Store frame pose information to retrieve the complete camera trajectory afterwards.
     if(!mCurrentFrame.mTcw.empty())
     {
+        // check whether reference keyframe is initialized
+        if (!mCurrentFrame.mpReferenceKF)   {
+            cout << "uninitialized keyframe" << endl; 
+            return; 
+        }
         cv::Mat Tcr = mCurrentFrame.mTcw*mCurrentFrame.mpReferenceKF->GetPoseInverse();
         mlRelativeFramePoses.push_back(Tcr);
         mlpReferences.push_back(mpReferenceKF);
@@ -890,6 +895,9 @@ void Tracking::CheckReplacedInLastFrame()
 
 bool Tracking::TrackReferenceKeyFrame()
 {
+    if (!mpReferenceKF)
+        return false; 
+        
     // Compute Bag of Words vector
     mCurrentFrame.ComputeBoW();
 
@@ -1117,6 +1125,8 @@ bool Tracking::NeedNewKeyFrame()
     if(mpLocalMapper->isStopped() || mpLocalMapper->stopRequested())
         return false;
 
+    if (!mpReferenceKF)
+        return false; 
     const int nKFs = mpMap->KeyFramesInMap();
 
     // Do not insert keyframes if not enough frames have passed from last relocalisation

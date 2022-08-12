@@ -102,7 +102,7 @@ void Client::receiveLoop() {
         SlamPkt* pkt = new SlamPkt(payload,size); 
         vector<cv::KeyPoint> keypoints_ = pkt->getKeyPoints(); 
         cv::Mat descriptors_ = pkt->getDescriptors();
-        int frameID = pkt->getFrameId(); 
+        int frameID = pkt->getFrameId()+100000*id_; 
         int gtID = pkt->getGroundTruthId(); 
         ORB_SLAM2::Frame* frame = new ORB_SLAM2::Frame(keypoints_, descriptors_, frameID, id_, gtID, extractor_, server_->system->getVocabulary(), mK, mDistCoef, mbf, mThDepth);
         //server_->InsertFrame(frame); 

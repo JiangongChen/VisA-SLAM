@@ -174,7 +174,7 @@ protected:
     Initializer* mpInitializer;
 
     //Local Map
-    KeyFrame* mpReferenceKF;
+    KeyFrame* mpReferenceKF=nullptr;
     std::vector<KeyFrame*> mvpLocalKeyFrames;
     std::vector<MapPoint*> mvpLocalMapPoints;
     

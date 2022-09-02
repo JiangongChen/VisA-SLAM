@@ -11,6 +11,7 @@
 #include <vector>
 #include <iostream>
 #include "slampkt.h"
+#include "cmdpkt.h"
 #include "Frame.h"
 #include "server.h"
 #include "ORBextractor.h"
@@ -26,6 +27,8 @@ public:
     void trackLoop(); 
     void InsertFrame(ORB_SLAM2::Frame *pF);
     bool CheckNewFrame();
+    // send a number to the client
+    bool sendMsg(int num);
     ORB_SLAM2::Frame* GetNewFrame();
 public:
     Server* server_;

@@ -53,6 +53,9 @@ id_(id), connfd_(connfd), recvFlag(true) {
     // add new tracking thread in SLAM system
     server_->system->AddClient(id_); 
 
+    // send the number of feature points for initialization
+    sendMsg(1000); 
+
     client_thread_ = std::thread(&Client::receiveLoop,this); 
     tracking_thread_ = std::thread(&Client::trackLoop,this);
 }
@@ -140,6 +143,17 @@ void Client::trackLoop(){
         else
             usleep(3000); 
     }
+}
+
+bool Client::sendMsg(int num){
+    CmdPkt* pkt = new CmdPkt(0,num);  
+    unsigned char* head = pkt->getHead();
+    if (head == nullptr) return false;
+    send(connfd_, head, 2, 0);
+    int size = pkt->getTotalLength();
+    unsigned char* payload = pkt->getPayload();
+    send(connfd_, payload, size, 0);
+    return true; 
 }
 
 void Client::InsertFrame(ORB_SLAM2::Frame *pF)

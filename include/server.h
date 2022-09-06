@@ -13,6 +13,7 @@
 #include "client.h"
 #include "Frame.h"
 #include "System.h"
+#include "Converter.h"
 #define PORT 8080
 #define PORT_AC 8848
 
@@ -28,7 +29,7 @@ public:
     void Close(); 
     bool CheckNewFrame();
     bool CheckAcoustic(); 
-    void CalAcoustic(); 
+    vector<double> CalAcoustic(); 
     ORB_SLAM2::Frame* GetNewFrame();
     void InsertFrame(ORB_SLAM2::Frame *pF);
 
@@ -63,6 +64,7 @@ public:
     double speedOfSound;
     int sample_rate;
     double kdistance; 
+    double est_scale; 
 }; 
 
 #endif

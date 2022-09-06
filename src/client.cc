@@ -185,14 +185,32 @@ void Client::trackLoop(){
                     std::chrono::monotonic_clock::time_point t2 = std::chrono::monotonic_clock::now();
             #endif
             double ttrack= std::chrono::duration_cast<std::chrono::duration<double> >(t2 - t1).count();
-            trajectory.push_back(tcw); 
-            vTimesTrack.push_back(ttrack); 
-            vTimestamps.push_back(im->mTimeStamp);
-            trajectory_gt_points.push_back(im->groundTruthID);
+            updateTraj(tcw,ttrack,im->mTimeStamp,im->groundTruthID); 
         }
         else
             usleep(3000); 
     }
+}
+
+void Client::updateTraj(cv::Mat tcw, double ttrack, double timeStamp, int gt_id){
+    unique_lock<mutex> lock(mMutexClient);
+    trajectory.push_back(tcw); 
+    vTimesTrack.push_back(ttrack); 
+    vTimestamps.push_back(timeStamp);
+    trajectory_gt_points.push_back(gt_id);
+}
+
+ int Client::getLatestTraj(cv::Mat &mat){
+    unique_lock<mutex> lock(mMutexClient);
+    int size = trajectory.size()-1; 
+    mat = trajectory[size];
+    return size;  
+}
+
+void Client::rewriteTraj(int poseId, cv::Mat mat){
+    unique_lock<mutex> lock(mMutexClient);
+    if (poseId >= trajectory.size()) return;
+    trajectory[poseId] = mat; 
 }
 
 bool Client::sendMsg(int num){

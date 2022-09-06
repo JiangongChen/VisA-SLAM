@@ -59,7 +59,7 @@ public:
     // optimize the pose with acoustic ranging distance results
     void static PoseOptimizationDistance(Frame *pFrame, vector<g2o::SE3Quat> groundTruth); 
     void static PoseOptimizationDistance(Eigen::Vector3d &pose_est, Eigen::Vector3d &pose_gt, cv::RNG *rng=NULL); 
-
+    void static PoseOptimizationDistanceWithScale(Eigen::Vector3d &pose_est, double &scale, vector<Eigen::Vector3d> pose_others, vector<double> distances); 
 };
 
 
@@ -81,6 +81,24 @@ public:
     virtual bool read(std::istream& in) override { return true; }
 
     virtual bool write(std::ostream& out) const override { return true; }
+};
+
+// vertex for the scale between real world coordinate system and visual SLAM coordinate
+class VertexScale : public g2o::BaseVertex<1, double> {
+public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
+        virtual void setToOriginImpl() override {
+        _estimate = 1;
+    }
+
+    virtual void oplusImpl(const double* update) override {
+        _estimate += update[0];
+    }
+
+    virtual bool read(istream& in) {}
+
+    virtual bool write(ostream& out) const {}
 };
 
 // unit edge with pose only, considering distance
@@ -111,6 +129,45 @@ public:
 
 private:
     Eigen::Vector3d _pos; // position of the other user
+};
+
+/// unit edge with pose and scale, considering distance
+class EdgeDistScale : public g2o::BaseBinaryEdge<1, double, VertexTran, VertexScale> {
+public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
+
+    EdgeDistScale(Eigen::Vector3d pos): BaseBinaryEdge(), _pos(pos)
+    {}
+
+    virtual void computeError() override {
+        const VertexTran* v = static_cast<VertexTran*>(_vertices[0]);
+        const VertexScale* vs = static_cast<VertexScale*>( _vertices[1]); 
+        Eigen::Vector3d T = v->estimate();
+        //cout << "T " << T << endl;
+        double s = vs->estimate(); 
+        _error(0, 0) = _measurement - s*s*(T-_pos).dot(T-_pos);
+        
+        //cout << "measure " << _measurement << endl;
+        //cout << "calculate error " << _error << endl; 
+    }
+    
+    virtual void linearizeOplus() override {
+        const VertexTran* v = static_cast<VertexTran*>(_vertices[0]);
+        Eigen::Vector3d T = v->estimate();
+        const VertexScale* vs = static_cast<VertexScale*>( _vertices[1]); 
+        double s = vs->estimate(); 
+        _jacobianOplusXi[0] = (-2 * s * s * (T(0, 0)-_pos(0,0)));
+        _jacobianOplusXi[1] = (-2 * s * s * (T(1, 0)-_pos(1,0)));
+        _jacobianOplusXi[2] = (-2 * s * s * (T(2, 0)-_pos(2,0)));
+        _jacobianOplusXj[0] = -2 * s * (T-_pos).dot(T-_pos);
+    }
+    
+    virtual bool read(std::istream& in) override { return true; }
+
+    virtual bool write(std::ostream& out) const override { return true; }
+
+private:
+  Eigen::Vector3d _pos; // position of the other user
 };
 
 } //namespace ORB_SLAM

@@ -33,6 +33,9 @@ public:
     // send a number to the client
     bool sendMsg(int num);
     void sendMsgAcoustic(char* msg); 
+    void updateTraj(cv::Mat tcw, double ttrack, double timeStamp, int gt_id);
+    int getLatestTraj(cv::Mat &mat); 
+    void rewriteTraj(int poseId, cv::Mat mat); 
     ORB_SLAM2::Frame* GetNewFrame();
     vector<string> split (const string &s, char delim) {
         vector<string> result;

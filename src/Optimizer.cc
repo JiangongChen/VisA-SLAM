@@ -1349,4 +1349,56 @@ void Optimizer::PoseOptimizationDistance(Eigen::Vector3d &pose_est, Eigen::Vecto
     //cout << "g2o optimized value: " << pose_est.transpose() << endl;
 }
 
+void Optimizer::PoseOptimizationDistanceWithScale(Eigen::Vector3d &pose_est, double &scale, vector<Eigen::Vector3d> pose_others, vector<double> distances){
+    typedef g2o::BlockSolver<g2o::BlockSolverTraits<3, 1>> BlockSolverType;  // dimension for each error component is 3, error value is 1
+    typedef g2o::LinearSolverDense<BlockSolverType::PoseMatrixType> LinearSolverType; // linear solver type
+
+    // gradient descend menthod, select from GN, LM, DogLeg 
+    LinearSolverType * linearSolver;
+
+    linearSolver = new LinearSolverType();
+
+    BlockSolverType * solver_ptr = new BlockSolverType(linearSolver);
+
+    g2o::OptimizationAlgorithmLevenberg* solver = new g2o::OptimizationAlgorithmLevenberg(solver_ptr);
+    g2o::SparseOptimizer optimizer;     
+    optimizer.setAlgorithm(solver);   
+    optimizer.setVerbose(true);
+
+    // add vertexes
+    VertexTran *v = new VertexTran();
+    v->setEstimate(pose_est);
+    v->setId(0);
+    optimizer.addVertex(v);
+    VertexScale *vscale = new VertexScale(); 
+    vscale->setEstimate(scale);
+    vscale->setId(1);  
+    optimizer.addVertex(vscale);
+
+    // add edges
+    for (int i = 0; i < pose_others.size(); i++) {
+        EdgeDistScale *edge = new EdgeDistScale(pose_others[i]);
+        edge->setId(i);
+        edge->setVertex(0, v);               
+        edge->setVertex(1, vscale); 
+        double dist = distances[i];
+        edge->setMeasurement(dist*dist);     
+        edge->setInformation(Eigen::Matrix<double, 1, 1>::Identity()); 
+        optimizer.addEdge(edge);
+    }
+
+    cout << "start optimization" << endl;
+    chrono::steady_clock::time_point t1 = chrono::steady_clock::now();
+    optimizer.initializeOptimization();
+    optimizer.optimize(10);
+    chrono::steady_clock::time_point t2 = chrono::steady_clock::now();
+    chrono::duration<double> time_used = chrono::duration_cast<chrono::duration<double>>(t2 - t1);
+    cout << "solve time cost = " << time_used.count() << " seconds. " << endl;
+
+    Eigen::Vector3d abc_estimate = v->estimate();
+    cout << "estimated model: " << abc_estimate.transpose() << " scale " << vscale->estimate() << endl;  
+    pose_est = abc_estimate; 
+    scale = vscale->estimate(); 
+}
+
 } //namespace ORB_SLAM

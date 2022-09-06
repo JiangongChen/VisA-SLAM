@@ -30,6 +30,7 @@
 #include<Converter.h>
 #include<server.h>
 #include<Frame.h>
+#include<Optimizer.h>
 
 using namespace std;
 
@@ -70,7 +71,22 @@ int main(int argc, char **argv)
     server->StartListening(); 
     while(server->listenFlag){
         if (server->CheckAcoustic()){
-            server->CalAcoustic(); 
+            vector<double> distances = server->CalAcoustic(); 
+            // optimize user 0's pose using acoustic ranging results
+            cv::Mat pose; 
+            int poseId = server->clients[0]->getLatestTraj(pose); 
+            Eigen::Vector3d est_trans = ORB_SLAM2::Converter::toSE3Quat(pose).translation(); 
+            vector<Eigen::Vector3d> other_trans; 
+            for (int i=1;i<server->max_client_num;i++){
+                cv::Mat o_pose; 
+                server->clients[i]->getLatestTraj(o_pose); 
+                other_trans.push_back(ORB_SLAM2::Converter::toSE3Quat(o_pose).translation()); 
+            }
+            ORB_SLAM2::Optimizer::PoseOptimizationDistanceWithScale(est_trans,server->est_scale,other_trans,distances); 
+            // rewrite the trajectory
+            cv::Mat newmat = ORB_SLAM2::Converter::toCvSE3(ORB_SLAM2::Converter::toSE3Quat(pose).rotation().toRotationMatrix(),est_trans); 
+            server->clients[0]->rewriteTraj(poseId,newmat); 
+
             /*#ifdef COMPILEDWITHC11
                     std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
             #else

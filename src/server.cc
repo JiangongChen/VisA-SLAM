@@ -37,7 +37,7 @@ Server::Server():
 }
 
 Server::Server(const string &strSettingsFile, ORB_SLAM2::System *sys):
-    client_num(0), client_num_ac(0), max_client_num(2), opt(1), listenFlag(true), listenFlagAcoustic(true){
+    client_num(0), client_num_ac(0), max_client_num(5), opt(1), listenFlag(true), listenFlagAcoustic(true), est_scale(1.0){
     // initialize the server
     //hello = "Hello from server";
     settingFile = strSettingsFile; 
@@ -166,7 +166,7 @@ void Server::ListeningAcoustic(){
     chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
     chrono::steady_clock::time_point prev = std::chrono::steady_clock::now();
     double gap = std::chrono::duration_cast<std::chrono::duration<double> >(now - start_time).count();
-    while(gap < 1){
+    while(gap < 100){
         if (std::chrono::duration_cast<std::chrono::duration<double> >(now - prev).count()<0.2){
             usleep(10000); 
             now = std::chrono::steady_clock::now();
@@ -224,7 +224,8 @@ bool Server::CheckAcoustic(){
     return true; 
 }
 
-void Server::CalAcoustic(){
+vector<double> Server::CalAcoustic(){
+    vector<double> distances; 
     for (int i=0;i<max_client_num;i++){
         for (int j=i+1;j<max_client_num;j++){
             int n1 = clients[i]->intervals[j].front();
@@ -233,8 +234,10 @@ void Server::CalAcoustic(){
             clients[j]->intervals[i].pop();
             double distance = (speedOfSound * (n1+n2)) / (2 * sample_rate) + kdistance;
             cout << "sample client " << i << ": " << n1 << " and client " << j << ": " << n2 << ", distance is " << distance << endl;  
+            distances.push_back(distance); 
         } 
     }
+    return distances; 
 }
 
 ORB_SLAM2::Frame* Server::GetNewFrame()

@@ -69,7 +69,8 @@ int main(int argc, char **argv)
 
     server->StartListening(); 
     while(server->listenFlag){
-        if (server->CheckNewFrame()){
+        if (server->CheckAcoustic()){
+            server->CalAcoustic(); 
             /*#ifdef COMPILEDWITHC11
                     std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
             #else

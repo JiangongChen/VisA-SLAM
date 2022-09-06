@@ -1,7 +1,7 @@
 # include "client.h"
 
-Client::Client(int id, int connfd, const string settingFile, Server* server):
-id_(id), connfd_(connfd), nFeaturesInit(1000), nFeatures(200), recvFlag(true), initFlag(true) {
+Client::Client(int id, int connfd, const string settingFile, Server* server, int total_c_num):
+id_(id), connfd_(connfd), nFeaturesInit(1000), nFeatures(200), recvFlag(true), recvFlagAcoustic(true), initFlag(true), num_users(total_c_num) {
     server_ = server; 
     cv::FileStorage fSettings(settingFile, cv::FileStorage::READ);
     float fx = fSettings["Camera.fx"];
@@ -60,9 +60,28 @@ id_(id), connfd_(connfd), nFeaturesInit(1000), nFeatures(200), recvFlag(true), i
     tracking_thread_ = std::thread(&Client::trackLoop,this);
 }
 
+void Client::AddAcoustic(int conn){
+    connfd_ac_ = conn; 
+    int yes = 1; 
+    int result = setsockopt(connfd_ac_,
+                            IPPROTO_TCP,
+                            TCP_NODELAY,
+                            (char *) &yes, 
+                            sizeof(int));    // 1 - on, 0 - off
+    if (result < 0)
+          cout << "set TCP_NODELAY failed. " << endl; 
+    for (int i=0;i<num_users;i++){
+      queue<int> queue; 
+      intervals.push_back(queue); 
+    }
+    acoustic_thread_ = std::thread(&Client::acousticLoop,this); 
+}
+
 void Client::Close(){
     recvFlag = false; 
+    recvFlagAcoustic = false;
     close(connfd_);
+    close(connfd_ac_); 
     //client_thread_.join();
     tracking_thread_.join();
 }
@@ -117,6 +136,28 @@ void Client::receiveLoop() {
     }
 }
 
+void Client::acousticLoop(){
+    char buffer[1024] = { 0 };
+    std::ostringstream ss;
+    ss << id_ << "\n"; 
+    const char* start_msg = ss.str().c_str(); 
+    send(connfd_ac_, start_msg, strlen(start_msg), 0); 
+    std::cout << "client " << id_ << " acoustic established" << endl; 
+    int valread = read(connfd_ac_, buffer, 1024);
+    while(recvFlagAcoustic) {
+        printf("received %s", buffer);
+        string msg(buffer); 
+        vector<string> tokens = split(msg,' ');
+        int group_num = tokens.size()/2; 
+        for (int i=0;i<group_num;i++) {
+          cout << "client " << id_ << " calculated interval of client " << tokens[2*i+0] << ": " << tokens[2*i+1] << endl; 
+          intervals[(int)atof(tokens[2*i+0].c_str())].push((int)atof(tokens[2*i+1].c_str())); 
+        }
+        cout << endl; 
+        valread = read(connfd_ac_, buffer, 1024);
+    }
+}
+
 void Client::trackLoop(){
     while(recvFlag){
         if (CheckNewFrame()){
@@ -127,7 +168,7 @@ void Client::trackLoop(){
             #endif
             ORB_SLAM2::Frame* im= GetNewFrame();  
             //int clientID = im->clientId; 
-            cout << "client: " << id_ << " frame id: " << im->mnId << " number of feature points: " << im->mvKeys.size() << endl;  
+            //cout << "client: " << id_ << " frame id: " << im->mnId << " number of feature points: " << im->mvKeys.size() << endl;  
             cv::Mat tcw = server_->system->TrackEdge(im);
             // detect the state of tracking to change the number of feature points
             if (!initFlag && server_->system->GetTrackingState(id_)!=2) {
@@ -163,6 +204,11 @@ bool Client::sendMsg(int num){
     unsigned char* payload = pkt->getPayload();
     send(connfd_, payload, size, 0);
     return true; 
+}
+
+void Client::sendMsgAcoustic(char *msg) {
+    send(connfd_ac_, msg, strlen(msg), 0); 
+    //cout << "send msg " << msg << " to client " << id_ << endl; 
 }
 
 void Client::InsertFrame(ORB_SLAM2::Frame *pF)

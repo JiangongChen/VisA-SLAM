@@ -1,7 +1,7 @@
 # include "client.h"
 
 Client::Client(int id, int connfd, const string settingFile, Server* server):
-id_(id), connfd_(connfd), recvFlag(true) {
+id_(id), connfd_(connfd), nFeaturesInit(1000), nFeatures(200), recvFlag(true), initFlag(true) {
     server_ = server; 
     cv::FileStorage fSettings(settingFile, cv::FileStorage::READ);
     float fx = fSettings["Camera.fx"];
@@ -54,7 +54,7 @@ id_(id), connfd_(connfd), recvFlag(true) {
     server_->system->AddClient(id_); 
 
     // send the number of feature points for initialization
-    sendMsg(1000); 
+    sendMsg(nFeaturesInit); 
 
     client_thread_ = std::thread(&Client::receiveLoop,this); 
     tracking_thread_ = std::thread(&Client::trackLoop,this);
@@ -126,9 +126,18 @@ void Client::trackLoop(){
                     std::chrono::monotonic_clock::time_point t1 = std::chrono::monotonic_clock::now();
             #endif
             ORB_SLAM2::Frame* im= GetNewFrame();  
-            int clientID = im->clientId; 
-            cout << "client: " << clientID << " frame id: " << im->mnId << endl;  
+            //int clientID = im->clientId; 
+            cout << "client: " << id_ << " frame id: " << im->mnId << " number of feature points: " << im->mvKeys.size() << endl;  
             cv::Mat tcw = server_->system->TrackEdge(im);
+            // detect the state of tracking to change the number of feature points
+            if (!initFlag && server_->system->GetTrackingState(id_)!=2) {
+                sendMsg(nFeaturesInit);
+                initFlag = true; 
+            }
+            if (initFlag && server_->system->GetTrackingState(id_)==2) {
+                sendMsg(nFeatures); 
+                initFlag = false; 
+            }
             #ifdef COMPILEDWITHC11
                     std::chrono::steady_clock::time_point t2 = std::chrono::steady_clock::now();
             #else

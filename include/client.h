@@ -35,9 +35,12 @@ public:
     // client id starts from 0 
     int id_;
     int connfd_;
+    int nFeaturesInit;
+    int nFeatures; 
     std::thread client_thread_; 
     std::thread tracking_thread_; 
     bool recvFlag; 
+    bool initFlag; 
     ORB_SLAM2::ORBextractor* extractor_;
 
     std::mutex mMutexClient;

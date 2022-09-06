@@ -305,7 +305,7 @@ cv::Mat System::TrackEdge(Frame* frame)
     }
 
     int client_id = frame->clientId; 
-    Tracking* mpTrackerClient = mpTrackerAllClients[client_id]; 
+    Tracking* mpTrackerClient = GetTracker(client_id);
 
     // Check mode change
     {
@@ -558,10 +558,22 @@ void System::SaveTrajectoryKITTI(const string &filename)
     cout << endl << "trajectory saved!" << endl;
 }
 
+Tracking* System::GetTracker(int clientID)
+{
+    unique_lock<mutex> lock(mMutexState);
+    return mpTrackerAllClients[clientID]; 
+}
+
 int System::GetTrackingState()
 {
     unique_lock<mutex> lock(mMutexState);
     return mTrackingState;
+}
+
+int System::GetTrackingState(int clientID)
+{
+    unique_lock<mutex> lock(mMutexState);
+    return mpTrackerAllClients[clientID]->mState;
 }
 
 vector<MapPoint*> System::GetTrackedMapPoints()

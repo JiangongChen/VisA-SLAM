@@ -72,16 +72,23 @@ int main(int argc, char **argv)
     while(server->listenFlag){
         if (server->CheckAcoustic()){
             vector<double> distances = server->CalAcoustic(); 
+            if (distances.size() != server->max_client_num) continue; 
+
             // optimize user 0's pose using acoustic ranging results
             cv::Mat pose; 
             int poseId = server->clients[0]->getLatestTraj(pose); 
             Eigen::Vector3d est_trans = ORB_SLAM2::Converter::toSE3Quat(pose).translation(); 
+            cout << "user 0 " << est_trans.transpose() << endl; 
             vector<Eigen::Vector3d> other_trans; 
             for (int i=1;i<server->max_client_num;i++){
                 cv::Mat o_pose; 
-                server->clients[i]->getLatestTraj(o_pose); 
+                int idx = server->clients[i]->getLatestTraj(o_pose); // the trajectory could be empty matrix, handling that
+                if (idx == -1) //handle invalid pose, e.g., has not been initialized
+                    continue; 
                 other_trans.push_back(ORB_SLAM2::Converter::toSE3Quat(o_pose).translation()); 
+                cout << "user " << i << " " << other_trans[i-1].transpose() << endl; 
             }
+            if (other_trans.size()!= server->max_client_num-1) continue; 
             ORB_SLAM2::Optimizer::PoseOptimizationDistanceWithScale(est_trans,server->est_scale,other_trans,distances); 
             // rewrite the trajectory
             cv::Mat newmat = ORB_SLAM2::Converter::toCvSE3(ORB_SLAM2::Converter::toSE3Quat(pose).rotation().toRotationMatrix(),est_trans); 
@@ -158,6 +165,7 @@ int main(int argc, char **argv)
     }
 
     //draw the trajectory for all users
+    cout << "start drawing the trajectory." << endl; 
     DrawTrajectory(trajectory, trajectory_gt_points);
 
     // Save camera trajectory

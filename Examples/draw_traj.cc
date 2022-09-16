@@ -73,8 +73,8 @@ void loadTrajectory(string str_path, vector<double> &times, vector<g2o::SE3Quat>
 
     while (!fin.eof())
     {
-        string trajectory_time, tx, ty, tz, mark; //, qx, qy, qz, qw, index;
-        fin >> trajectory_time >> tx >> ty >> tz >> mark; // >> qx >> qy >> qz >> qw >> index;
+        string trajectory_time, tx, ty, tz, qx, qy, qz, qw, mark;
+        fin >> trajectory_time >> tx >> ty >> tz >> qx >> qy >> qz >> qw >> mark;
         
         if (fin.good() == false)
             break;
@@ -110,7 +110,7 @@ void DrawTrajectory(const vector<g2o::SE3Quat> & esti, const vector<g2o::SE3Quat
         .SetBounds(0.0, 1.0, pangolin::Attach::Pix(175), 1.0, -1024.0f / 768.0f)
         .SetHandler(new pangolin::Handler3D(s_cam));
 
-
+    int end_i = 0; 
     while (pangolin::ShouldQuit() == false) {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -146,7 +146,8 @@ void DrawTrajectory(const vector<g2o::SE3Quat> & esti, const vector<g2o::SE3Quat
             }
         }
 
-        for (size_t i = 0; i < esti.size() - 1; i++) {
+        if (end_i >= esti.size()) end_i = esti.size() - 1; 
+        for (size_t i = 0; i < end_i; i++) {
             g2o::SE3Quat tcw = esti[i];
             g2o::SE3Quat tcw2 = esti[i + 1];
             if (gt_marks[i]==0){
@@ -164,8 +165,12 @@ void DrawTrajectory(const vector<g2o::SE3Quat> & esti, const vector<g2o::SE3Quat
             glVertex3d(p2(0, 0), p2(1, 0), p2(2, 0));
             glEnd();
         }
+        std::ostringstream ss;
+        ss << "frame: " << end_i; 
+        pangolin::GlFont::I().Text(ss.str()).Draw(0,0,0);
         pangolin::FinishFrame();
         usleep(5000);   // sleep 5 ms
+        end_i++; 
     }
 }
 

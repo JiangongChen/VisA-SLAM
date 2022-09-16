@@ -37,7 +37,7 @@ Server::Server():
 }
 
 Server::Server(const string &strSettingsFile, ORB_SLAM2::System *sys):
-    client_num(0), client_num_ac(0), max_client_num(5), opt(1), listenFlag(true), listenFlagAcoustic(true), est_scale(1.0){
+    client_num(0), client_num_ac(0), max_client_num(1), opt(1), listenFlag(true), listenFlagAcoustic(true), est_scale(1.0){
     // initialize the server
     //hello = "Hello from server";
     settingFile = strSettingsFile; 
@@ -166,8 +166,8 @@ void Server::ListeningAcoustic(){
     chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
     chrono::steady_clock::time_point prev = std::chrono::steady_clock::now();
     double gap = std::chrono::duration_cast<std::chrono::duration<double> >(now - start_time).count();
-    while(gap < 100){
-        if (std::chrono::duration_cast<std::chrono::duration<double> >(now - prev).count()<0.2){
+    while(gap < 0){
+        if (std::chrono::duration_cast<std::chrono::duration<double> >(now - prev).count()<1){
             usleep(10000); 
             now = std::chrono::steady_clock::now();
             continue; 
@@ -176,7 +176,7 @@ void Server::ListeningAcoustic(){
             char* msg = "emit\n"; 
             client->sendMsgAcoustic(msg); 
             //if (client->id_ == 2)
-            //    usleep(50000); // emit signal in an interval of 1 second 
+                usleep(1000000); // emit signal in an interval of 1 second 
         }
         now = std::chrono::steady_clock::now();
         prev = std::chrono::steady_clock::now();
@@ -234,7 +234,8 @@ vector<double> Server::CalAcoustic(){
             clients[j]->intervals[i].pop();
             double distance = (speedOfSound * (n1+n2)) / (2 * sample_rate) + kdistance;
             cout << "sample client " << i << ": " << n1 << " and client " << j << ": " << n2 << ", distance is " << distance << endl;  
-            distances.push_back(distance); 
+            if (distance > 0 && distance < 4) // ignore obviously wrong distances
+                distances.push_back(distance); 
         } 
     }
     return distances; 

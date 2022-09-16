@@ -1,7 +1,7 @@
 # include "client.h"
 
 Client::Client(int id, int connfd, const string settingFile, Server* server, int total_c_num):
-id_(id), connfd_(connfd), nFeaturesInit(1000), nFeatures(200), recvFlag(true), recvFlagAcoustic(true), initFlag(true), num_users(total_c_num) {
+id_(id), connfd_(connfd), nFeaturesInit(1000), nFeatures(500), recvFlag(true), recvFlagAcoustic(true), initFlag(true), num_users(total_c_num) {
     server_ = server; 
     cv::FileStorage fSettings(settingFile, cv::FileStorage::READ);
     float fx = fSettings["Camera.fx"];
@@ -203,7 +203,11 @@ void Client::updateTraj(cv::Mat tcw, double ttrack, double timeStamp, int gt_id)
  int Client::getLatestTraj(cv::Mat &mat){
     unique_lock<mutex> lock(mMutexClient);
     int size = trajectory.size()-1; 
-    mat = trajectory[size];
+    while(size>=0){
+        mat = trajectory[size];
+        if (!mat.empty()) break; 
+        size--; 
+    }
     return size;  
 }
 
@@ -211,6 +215,7 @@ void Client::rewriteTraj(int poseId, cv::Mat mat){
     unique_lock<mutex> lock(mMutexClient);
     if (poseId >= trajectory.size()) return;
     trajectory[poseId] = mat; 
+    trajectory_gt_points[poseId] = -1; 
 }
 
 bool Client::sendMsg(int num){

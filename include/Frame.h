@@ -58,7 +58,7 @@ public:
     Frame(const cv::Mat &imGray, const double &timeStamp, ORBextractor* extractor,ORBVocabulary* voc, cv::Mat &K, cv::Mat &distCoef, const float &bf, const float &thDepth);
 
     // Constructor for given keypoints and descriptors, no image
-    Frame(const vector<cv::KeyPoint> &keypoints, const cv::Mat &descriptors, int frameID, int clientID, int gtID, ORBextractor* extractor, ORBVocabulary* voc, cv::Mat &K, cv::Mat &distCoef, const float &bf, const float &thDepth);
+    Frame(const vector<cv::KeyPoint> &keypoints, const cv::Mat &descriptors, int frameID, int clientID, int gtID, long timestamp, ORBextractor* extractor, ORBVocabulary* voc, cv::Mat &K, cv::Mat &distCoef, const float &bf, const float &thDepth);
 
     // Extract ORB on the image. 0 for left image and 1 for right image.
     void ExtractORB(int flag, const cv::Mat &im);

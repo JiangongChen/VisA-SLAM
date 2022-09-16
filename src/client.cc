@@ -126,13 +126,15 @@ void Client::receiveLoop() {
         cv::Mat descriptors_ = pkt->getDescriptors();
         int frameID = pkt->getFrameId()+100000*id_; 
         int gtID = pkt->getGroundTruthId(); 
-        ORB_SLAM2::Frame* frame = new ORB_SLAM2::Frame(keypoints_, descriptors_, frameID, id_, gtID, extractor_, server_->system->getVocabulary(), mK, mDistCoef, mbf, mThDepth);
+        long stamp = pkt->getTimeStamp(); 
+        ORB_SLAM2::Frame* frame = new ORB_SLAM2::Frame(keypoints_, descriptors_, frameID, id_, gtID, stamp, extractor_, server_->system->getVocabulary(), mK, mDistCoef, mbf, mThDepth);
         //server_->InsertFrame(frame); 
         InsertFrame(frame); 
 
         //cout << "frame id " << frameID << endl;
         //cout << "keypoints " << keypoints_[10].pt << " " << keypoints_[71].pt << endl;
         //cout << "descriptors " << descriptors_.row(10) << endl;
+        //cout << fixed << "time stamp " << frame->mTimeStamp << endl;
     }
 }
 

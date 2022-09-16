@@ -228,13 +228,13 @@ Frame::Frame(const cv::Mat &imGray, const double &timeStamp, ORBextractor* extra
 
 }
 
-Frame::Frame(const vector<cv::KeyPoint> &keypoints, const cv::Mat &descriptors, int frameID, int clientID, int gtID, ORBextractor* extractor, ORBVocabulary* voc, cv::Mat &K, cv::Mat &distCoef, const float &bf, const float &thDepth)
+Frame::Frame(const vector<cv::KeyPoint> &keypoints, const cv::Mat &descriptors, int frameID, int clientID, int gtID, long timestamp, ORBextractor* extractor, ORBVocabulary* voc, cv::Mat &K, cv::Mat &distCoef, const float &bf, const float &thDepth)
 :mpORBvocabulary(voc),mpORBextractorLeft(extractor),mpORBextractorRight(static_cast<ORBextractor*>(NULL)),
     mK(K.clone()),mDistCoef(distCoef.clone()), mbf(bf), mThDepth(thDepth)
 {
     // Frame ID
     mnId=frameID;
-    mTimeStamp = frameID*0.033;
+    mTimeStamp = (double) timestamp/1e3; // unit: s
     clientId = clientID; 
     groundTruthID = gtID; 
 

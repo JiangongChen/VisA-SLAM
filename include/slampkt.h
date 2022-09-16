@@ -14,10 +14,11 @@ public:
 	int num_pts_; // number of feature points for this frame, assume no distortion
 	int total_len_; // total length of current packet, unit: bytes
 	int pt_len_=36; // length of a keypoint, each point use 36 bytes, 2 bytes x, 2 bytes y, plus 32 bytes descriptor
-	int header_len_=4; // length of the header, currently, two bytes for frame id, two bytes for ground truth id
+	int header_len_=12; // length of the header, currently, two bytes for frame id, two bytes for ground truth id, eight bytes for the timestamp
 	int descriptor_len_ = 32; // length of descriptor for a keypoint, 32 bytes
 	int frame_id_; // the frame id
 	int ground_truth_id_; // indicates the number of ground truth points during measurements
+	long time_stamp_;
 	unsigned char* payload; // store the payload
 	vector<KeyPoint> kps_; // all keypoints, without undistortion
 	Mat descriptors_; // descriptors for all keypoints
@@ -33,6 +34,10 @@ public:
 		unsigned short gt_id_us = ((unsigned short) payload[2])*256 + (unsigned short)payload[3];
 		ground_truth_id_ = (int) gt_id_us;
 
+		unsigned int ts_ul_1 = ((unsigned int) payload[4])*16777216 + ((unsigned int) payload[5])*65536 + ((unsigned int) payload[6])*256 + (unsigned int)payload[7];
+		unsigned int ts_ul_2 = ((unsigned int) payload[8])*16777216 + ((unsigned int) payload[9])*65536 + ((unsigned int) payload[10])*256 + (unsigned int)payload[11];
+		time_stamp_ = (long) ((unsigned long) ts_ul_1*4294967296+ts_ul_2);
+
 		num_pts_ = (total_len_-header_len_) / pt_len_;
 		descriptors_ = Mat(num_pts_, descriptor_len_, CV_8UC1);
 		for (int i = 0; i < num_pts_; i++) {
@@ -45,11 +50,12 @@ public:
 		}
 	}
 
-	SlamPkt(int id, vector<KeyPoint>& kps, Mat& descriptors, int gt_id) {
+	SlamPkt(int id, vector<KeyPoint>& kps, Mat& descriptors, int gt_id, long timestamp) {
 		num_pts_ = (int) kps.size(); 
 		total_len_ = num_pts_ * pt_len_ + header_len_;
 		frame_id_ = id;
 		ground_truth_id_ = gt_id;
+		time_stamp_ = timestamp;
 		kps_ = kps; 
 		descriptors_ = descriptors; 
 		payload = new unsigned char[total_len_];
@@ -59,6 +65,14 @@ public:
 		payload[1] = (unsigned short)frame_id_ & 0xff ;
 		payload[2] = (unsigned short)ground_truth_id_ >> 8 ;
 		payload[3] = (unsigned short)ground_truth_id_ & 0xff ;
+		payload[4] = (unsigned long)time_stamp_ >> 56 ;
+		payload[5] = (unsigned long)time_stamp_ >> 48 ;
+		payload[6] = (unsigned long)time_stamp_ >> 40 ;
+		payload[7] = (unsigned long)time_stamp_ >> 32 ;
+		payload[8] = (unsigned long)time_stamp_ >> 24 ;
+		payload[9] = (unsigned long)time_stamp_ >> 16 ;
+		payload[10] = (unsigned long)time_stamp_ >> 8 ;
+		payload[11] = (unsigned long)time_stamp_ & 0xff ;
 
 		for (int i = 0; i < num_pts_; i++) {
 			payload[i * pt_len_ + header_len_] = (unsigned short)kps_[i].pt.x >> 8 ;
@@ -106,6 +120,10 @@ public:
 
 	int getGroundTruthId(){
 		return ground_truth_id_;
+	}
+
+	long getTimeStamp(){
+		return time_stamp_;
 	}
 }; 
 #endif // SLAMPKT_H

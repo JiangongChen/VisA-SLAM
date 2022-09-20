@@ -37,7 +37,7 @@ Server::Server():
 }
 
 Server::Server(const string &strSettingsFile, ORB_SLAM2::System *sys):
-    client_num(0), client_num_ac(0), max_client_num(1), opt(1), listenFlag(true), listenFlagAcoustic(true), est_scale(1.0){
+    client_num(0), client_num_ac(0), max_client_num(5), opt(1), listenFlag(true), listenFlagAcoustic(true), est_scale(1.0){
     // initialize the server
     //hello = "Hello from server";
     settingFile = strSettingsFile; 
@@ -161,12 +161,21 @@ void Server::ListeningAcoustic(){
         std::cout << "client " << client_num_ac << " acoustic communication has been accepted" << std::endl; 
         client_num_ac++;
     }
+    // wait for all clients have been initialized 
+    bool flag = true; 
+    while(flag) {
+        flag = false; 
+        for (Client* client : clients)
+            if (client->initFlag) flag = true; 
+        usleep(30000); 
+    }
+
     //periodically let client emit acoustic signal
     chrono::steady_clock::time_point start_time = std::chrono::steady_clock::now();
     chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
     chrono::steady_clock::time_point prev = std::chrono::steady_clock::now();
     double gap = std::chrono::duration_cast<std::chrono::duration<double> >(now - start_time).count();
-    while(gap < 0){
+    while(gap < 5){
         if (std::chrono::duration_cast<std::chrono::duration<double> >(now - prev).count()<1){
             usleep(10000); 
             now = std::chrono::steady_clock::now();
@@ -183,7 +192,7 @@ void Server::ListeningAcoustic(){
         gap = std::chrono::duration_cast<std::chrono::duration<double> >(now - start_time).count();
     }
     // closing the listening socket
-    shutdown(server_fd_ac, SHUT_RDWR);
+    //shutdown(server_fd_ac, SHUT_RDWR);
     std::cout << "server listening thread for acoustic has been stopped." << std::endl; 
     listenFlagAcoustic = false; 
 }
@@ -234,7 +243,7 @@ vector<double> Server::CalAcoustic(){
             clients[j]->intervals[i].pop();
             double distance = (speedOfSound * (n1+n2)) / (2 * sample_rate) + kdistance;
             cout << "sample client " << i << ": " << n1 << " and client " << j << ": " << n2 << ", distance is " << distance << endl;  
-            if (distance > 0 && distance < 4) // ignore obviously wrong distances
+            if (i == 0 && distance > 0 && distance < 4) // ignore obviously wrong distances
                 distances.push_back(distance); 
         } 
     }

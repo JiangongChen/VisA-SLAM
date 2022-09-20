@@ -54,6 +54,24 @@ int main(int argc, char **argv)
     //LoadGroundTruth(strGt, gtTrajectory);
 
 
+
+    // test optimization
+    /*Eigen::Vector3d est_trans_(0.0030162, -0.00135208, 0.0102468); 
+    vector<Eigen::Vector3d> other_trans_; 
+    other_trans_.push_back(Eigen::Vector3d(-0.174665,-0.0257178,0.0254251));
+    other_trans_.push_back(Eigen::Vector3d(-0.331369,-0.028767,0.0512067));
+    other_trans_.push_back(Eigen::Vector3d(-0.550635,0.00364682,0.0597533));
+    other_trans_.push_back(Eigen::Vector3d(-0.688629,-0.0450902,-0.0474848));
+    vector<double> distances_;
+    distances_.push_back(0.291614); 
+    distances_.push_back(0.54154); 
+    distances_.push_back(0.907373); 
+    distances_.push_back(1.15005); 
+    double est_ = 1.0; 
+    
+    ORB_SLAM2::Optimizer::PoseOptimizationDistanceWithScale(est_trans_,est_,other_trans_,distances_); 
+    cout << "est pose: " << est_trans_.transpose() << "scale: " << est_ << endl; */
+
     // Create SLAM system. It initializes all system threads and gets ready to process frames.
     ORB_SLAM2::System *SLAM = new ORB_SLAM2::System(argv[1],argv[2],ORB_SLAM2::System::MONOCULAR,true);
 
@@ -72,7 +90,7 @@ int main(int argc, char **argv)
     while(server->listenFlag){
         if (server->CheckAcoustic()){
             vector<double> distances = server->CalAcoustic(); 
-            if (distances.size() != server->max_client_num) continue; 
+            if (distances.size() < server->max_client_num - 1) continue; 
 
             // optimize user 0's pose using acoustic ranging results
             cv::Mat pose; 
@@ -89,7 +107,7 @@ int main(int argc, char **argv)
                 cout << "user " << i << " " << other_trans[i-1].transpose() << endl; 
             }
             if (other_trans.size()!= server->max_client_num-1) continue; 
-            ORB_SLAM2::Optimizer::PoseOptimizationDistanceWithScale(est_trans,server->est_scale,other_trans,distances); 
+            //ORB_SLAM2::Optimizer::PoseOptimizationDistanceWithScale(est_trans,server->est_scale,other_trans,distances); 
             // rewrite the trajectory
             cv::Mat newmat = ORB_SLAM2::Converter::toCvSE3(ORB_SLAM2::Converter::toSE3Quat(pose).rotation().toRotationMatrix(),est_trans); 
             server->clients[0]->rewriteTraj(poseId,newmat); 

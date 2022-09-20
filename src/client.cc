@@ -1,7 +1,7 @@
 # include "client.h"
 
 Client::Client(int id, int connfd, const string settingFile, Server* server, int total_c_num):
-id_(id), connfd_(connfd), nFeaturesInit(1000), nFeatures(500), recvFlag(true), recvFlagAcoustic(true), initFlag(true), num_users(total_c_num) {
+id_(id), connfd_(connfd), nFeaturesInit(1000), nFeatures(300), recvFlag(true), recvFlagAcoustic(true), initFlag(true), num_users(total_c_num) {
     server_ = server; 
     cv::FileStorage fSettings(settingFile, cv::FileStorage::READ);
     float fx = fSettings["Camera.fx"];
@@ -158,6 +158,7 @@ void Client::acousticLoop(){
         cout << endl; 
         valread = read(connfd_ac_, buffer, 1024);
     }
+    std::cout << "client " << id_ << " acoustic stopped" << endl; 
 }
 
 void Client::trackLoop(){

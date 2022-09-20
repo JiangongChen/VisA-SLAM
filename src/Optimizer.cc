@@ -1350,7 +1350,7 @@ void Optimizer::PoseOptimizationDistance(Eigen::Vector3d &pose_est, Eigen::Vecto
 }
 
 void Optimizer::PoseOptimizationDistanceWithScale(Eigen::Vector3d &pose_est, double &scale, vector<Eigen::Vector3d> pose_others, vector<double> distances){
-    typedef g2o::BlockSolver<g2o::BlockSolverTraits<3, 1>> BlockSolverType;  // dimension for each error component is 3, error value is 1
+    typedef g2o::BlockSolver<g2o::BlockSolverTraits<Eigen::Dynamic, Eigen::Dynamic>> BlockSolverType;  // dimension for each error component is 3, error value is 1
     typedef g2o::LinearSolverDense<BlockSolverType::PoseMatrixType> LinearSolverType; // linear solver type
 
     // gradient descend menthod, select from GN, LM, DogLeg 
@@ -1365,9 +1365,10 @@ void Optimizer::PoseOptimizationDistanceWithScale(Eigen::Vector3d &pose_est, dou
     optimizer.setAlgorithm(solver);   
     optimizer.setVerbose(true);
 
+    Eigen::Vector3d pose = pose_est; 
     // add vertexes
     VertexTran *v = new VertexTran();
-    v->setEstimate(pose_est);
+    v->setEstimate(pose);
     v->setId(0);
     optimizer.addVertex(v);
     VertexScale *vscale = new VertexScale(); 
@@ -1376,7 +1377,7 @@ void Optimizer::PoseOptimizationDistanceWithScale(Eigen::Vector3d &pose_est, dou
     optimizer.addVertex(vscale);
 
     // add edges
-    for (int i = 0; i < pose_others.size(); i++) {
+    for (int i = 0; i < (int) pose_others.size(); i++) {
         EdgeDistScale *edge = new EdgeDistScale(pose_others[i]);
         edge->setId(i);
         edge->setVertex(0, v);               
@@ -1390,6 +1391,7 @@ void Optimizer::PoseOptimizationDistanceWithScale(Eigen::Vector3d &pose_est, dou
     cout << "start optimization" << endl;
     chrono::steady_clock::time_point t1 = chrono::steady_clock::now();
     optimizer.initializeOptimization();
+    cout << "optimization initialization done" << endl;
     optimizer.optimize(10);
     chrono::steady_clock::time_point t2 = chrono::steady_clock::now();
     chrono::duration<double> time_used = chrono::duration_cast<chrono::duration<double>>(t2 - t1);
@@ -1399,6 +1401,7 @@ void Optimizer::PoseOptimizationDistanceWithScale(Eigen::Vector3d &pose_est, dou
     cout << "estimated model: " << abc_estimate.transpose() << " scale " << vscale->estimate() << endl;  
     pose_est = abc_estimate; 
     scale = vscale->estimate(); 
+
 }
 
 } //namespace ORB_SLAM

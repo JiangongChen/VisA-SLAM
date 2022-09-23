@@ -39,6 +39,8 @@ void DrawTrajectory(const vector<cv::Mat> & esti, const vector<cv::Mat>& gt, vec
 // for multiple users
 void DrawTrajectory(const vector<vector<cv::Mat>> & esti, vector<vector<int>> gt_points);
 void SaveTrajectory(const string& filename, const vector<cv::Mat>& trajectory, vector<double> timeStamps, vector<int> trajGTpts);
+void SaveDistanceMeasurement(const string & filename, const vector<double> ts1, const vector<int> users1, const vector<Eigen::Vector3d> pos1, const vector<double> ts2, const vector<int> users2, const vector<Eigen::Vector3d> pos2, vector<double> distances);
+void SaveScales(const string & filename, const vector<double> scales);
 
 int main(int argc, char **argv)
 {
@@ -67,10 +69,29 @@ int main(int argc, char **argv)
     distances_.push_back(0.54154); 
     distances_.push_back(0.907373); 
     distances_.push_back(1.15005); 
-    double est_ = 1.0; 
+    double scale_true = 2.0; 
+    double scale_est = 1.0; 
     
-    ORB_SLAM2::Optimizer::PoseOptimizationDistanceWithScale(est_trans_,est_,other_trans_,distances_); 
-    cout << "est pose: " << est_trans_.transpose() << "scale: " << est_ << endl; */
+    vector<Eigen::Vector3d> y_data;     
+    y_data.push_back(Eigen::Vector3d(1,2,1));
+    y_data.push_back(Eigen::Vector3d(2,1,1));
+    y_data.push_back(Eigen::Vector3d(1,1,2));
+    y_data.push_back(Eigen::Vector3d(1,1.3,1.4));
+    vector<Eigen::Vector3d> x_data;     
+    x_data.push_back(Eigen::Vector3d(1,1,1));
+    x_data.push_back(Eigen::Vector3d(1,1,1));
+    x_data.push_back(Eigen::Vector3d(1,1,1));
+    x_data.push_back(Eigen::Vector3d(1,1,1));
+    vector<double> distances_scale_;
+    distances_scale_.push_back(1*scale_true);
+    distances_scale_.push_back(1*scale_true);
+    distances_scale_.push_back(1*scale_true);
+    distances_scale_.push_back(0.5*scale_true);
+    ORB_SLAM2::Optimizer::PoseOptimizationScale(x_data, y_data, distances_scale_, scale_est); 
+    //ORB_SLAM2::Optimizer::PoseOptimizationDistanceGivenScale(est_trans_,scale_est,other_trans_,distances_); 
+    ORB_SLAM2::Optimizer::PoseOptimizationDistanceGivenScale(est_trans_,scale_est,y_data, distances_scale_); 
+    cout << "est pose: " << est_trans_.transpose() << " scale: " << scale_est << endl; 
+    return 0; */
 
     // Create SLAM system. It initializes all system threads and gets ready to process frames.
     ORB_SLAM2::System *SLAM = new ORB_SLAM2::System(argv[1],argv[2],ORB_SLAM2::System::MONOCULAR,true);
@@ -95,7 +116,10 @@ int main(int argc, char **argv)
             // optimize user 0's pose using acoustic ranging results
             cv::Mat pose; 
             int poseId = server->clients[0]->getLatestTraj(pose); 
-            Eigen::Vector3d est_trans = ORB_SLAM2::Converter::toSE3Quat(pose).translation(); 
+            // get Twc
+            cv::Mat R = pose.rowRange(0, 3).colRange(0, 3).t();
+            cv::Mat t = -R * pose.rowRange(0, 3).col(3);
+            Eigen::Vector3d est_trans (t.at<float>(0),t.at<float>(1),t.at<float>(2)); 
             cout << "user 0 " << est_trans.transpose() << endl; 
             vector<Eigen::Vector3d> other_trans; 
             for (int i=1;i<server->max_client_num;i++){
@@ -103,15 +127,32 @@ int main(int argc, char **argv)
                 int idx = server->clients[i]->getLatestTraj(o_pose); // the trajectory could be empty matrix, handling that
                 if (idx == -1) //handle invalid pose, e.g., has not been initialized
                     continue; 
-                other_trans.push_back(ORB_SLAM2::Converter::toSE3Quat(o_pose).translation()); 
+                R = o_pose.rowRange(0, 3).colRange(0, 3).t();
+                t = -R * o_pose.rowRange(0, 3).col(3);
+                Eigen::Vector3d pose_other(t.at<float>(0),t.at<float>(1),t.at<float>(2));
+                other_trans.push_back(pose_other); 
                 cout << "user " << i << " " << other_trans[i-1].transpose() << endl; 
+                server->hist_poses_1.push_back(est_trans);
+                server->hist_poses_2.push_back(pose_other);
+                server->hist_users_1.push_back(0);
+                server->hist_users_2.push_back(i); 
+                server->hist_TS_1.push_back(server->clients[0]->getLatestTS()); 
+                server->hist_TS_2.push_back(server->clients[i]->getLatestTS()); 
+                server->hist_distances.push_back(distances[i-1]); 
             }
             if (other_trans.size()!= server->max_client_num-1) continue; 
             //ORB_SLAM2::Optimizer::PoseOptimizationDistanceWithScale(est_trans,server->est_scale,other_trans,distances); 
-            // rewrite the trajectory
-            cv::Mat newmat = ORB_SLAM2::Converter::toCvSE3(ORB_SLAM2::Converter::toSE3Quat(pose).rotation().toRotationMatrix(),est_trans); 
+            ORB_SLAM2::Optimizer::PoseOptimizationScale(server->hist_poses_1, server->hist_poses_2, server->hist_distances, server->est_scale); 
+            ORB_SLAM2::Optimizer::PoseOptimizationDistanceGivenScale(est_trans,server->est_scale,other_trans,distances); 
+            // rewrite the trajectory, convert back to Tcw
+            R = pose.rowRange(0, 3).colRange(0, 3);
+            cv::Mat tmat = ORB_SLAM2::Converter::toCvMat(est_trans); 
+            tmat = -R * tmat;
+            Eigen::Vector3d est_trans_inv = ORB_SLAM2::Converter::toVector3d(tmat);
+            cv::Mat newmat = ORB_SLAM2::Converter::toCvSE3(ORB_SLAM2::Converter::toSE3Quat(pose).rotation().toRotationMatrix(),est_trans_inv); 
+            cout << "estimate pose: " << est_trans.transpose() << " estimate scale: " << server->est_scale << endl; // << " mat: " << newmat; 
             server->clients[0]->rewriteTraj(poseId,newmat); 
-
+            server->hist_scales.push_back(server->est_scale); 
             /*#ifdef COMPILEDWITHC11
                     std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
             #else
@@ -181,6 +222,18 @@ int main(int argc, char **argv)
         // save the trajectory for each user
         SaveTrajectory(trajFileName,trajectory[i],vTimestamps[i],trajectory_gt_points[i]);
     }
+
+    // save the measured distances
+    std::ostringstream ss;
+    ss << "allDistances.txt";
+    string trajFileName(ss.str()); 
+    SaveDistanceMeasurement(trajFileName, server->hist_TS_1, server->hist_users_1, server->hist_poses_1, server->hist_TS_2, server->hist_users_2, server->hist_poses_2, server->hist_distances); 
+
+    // save the measured distances
+    std::ostringstream ss2;
+    ss2 << "allScales.txt";
+    string trajFileName2(ss2.str()); 
+    SaveScales(trajFileName2, server->hist_scales); 
 
     //draw the trajectory for all users
     cout << "start drawing the trajectory." << endl; 
@@ -349,7 +402,7 @@ void DrawTrajectory(const vector<vector<cv::Mat>> & esti, vector<vector<int>> gt
 void SaveTrajectory(const string & filename, const vector<cv::Mat>&trajectory, vector<double> timeStamps, vector<int> trajGTpts) {
     ofstream f;
     f.open(filename.c_str());
-    f << "# timeStamp tx ty tz qx qy qz qw groundTruthPoints" << endl; 
+    f << "#timeStamp tx ty tz qx qy qz qw groundTruthPoints" << endl; 
     f << fixed;
     for (size_t i = 0; i < trajectory.size(); i++)
     {
@@ -362,6 +415,36 @@ void SaveTrajectory(const string & filename, const vector<cv::Mat>&trajectory, v
             << " " << q[0] << " " << q[1] << " " << q[2] << " " << q[3] << " " << trajGTpts[i] << endl;
     }
 
+    f.close();
+    cout << endl << filename << " saved!" << endl;
+}
+
+void SaveDistanceMeasurement(const string & filename, const vector<double> ts1, const vector<int> users1, const vector<Eigen::Vector3d> pos1, const vector<double> ts2, const vector<int> users2, const vector<Eigen::Vector3d> pos2, vector<double> distances){
+    ofstream f;
+    f.open(filename.c_str());
+    f << "# timeStamp1 user1 tx1 ty1 tz1 timeStamp2 user2 tx2 ty2 tz2 distance" << endl; 
+    f << fixed;
+    for (size_t i = 0; i < distances.size(); i++)
+    {
+        f << setprecision(3) << ts1[i] << " " << setprecision(0) << users1[i] << setprecision(5) << " " << pos1[i][0] << " " << pos1[i][1] << " " << pos1[i][2] << " " 
+            << setprecision(3) << ts2[i] << " " << setprecision(0) << users2[i] << setprecision(5) << " " << pos2[i][0] << " " << pos2[i][1] << " " << pos2[i][2]
+            << " " << distances[i] << endl;
+    }
+
+    f.close();
+    cout << endl << filename << " saved!" << endl;
+}
+
+void SaveScales(const string & filename, const vector<double> scales){
+    ofstream f;
+    f.open(filename.c_str());
+    f << "# scales" << endl; 
+    f << fixed;
+    for (size_t i = 0; i < scales.size(); i++)
+    {
+        f << setprecision(5) << scales[i] << endl; 
+    }
+    
     f.close();
     cout << endl << filename << " saved!" << endl;
 }

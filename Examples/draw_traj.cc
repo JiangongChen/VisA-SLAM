@@ -70,12 +70,15 @@ void loadTrajectory(string str_path, vector<double> &times, vector<g2o::SE3Quat>
         cout << "cannot find " << str_path << "!" << endl;
         return;
     }
-
+    int cnt = 0; 
     while (!fin.eof())
     {
         string trajectory_time, tx, ty, tz, qx, qy, qz, qw, mark;
         fin >> trajectory_time >> tx >> ty >> tz >> qx >> qy >> qz >> qw >> mark;
-        
+        if (cnt < 3)
+            cout << " traj: " << trajectory_time <<  " tx: " << tx << " ty: " << ty << " tz: " << tz 
+            << " qx: " << qx << " qy: " << qy << " qz: " << qz << " qw: " << qw << " mark: " << mark; 
+        cnt++; 
         if (fin.good() == false)
             break;
 
@@ -110,7 +113,7 @@ void DrawTrajectory(const vector<g2o::SE3Quat> & esti, const vector<g2o::SE3Quat
         .SetBounds(0.0, 1.0, pangolin::Attach::Pix(175), 1.0, -1024.0f / 768.0f)
         .SetHandler(new pangolin::Handler3D(s_cam));
 
-    int end_i = 0; 
+    int end_i = 2000; 
     while (pangolin::ShouldQuit() == false) {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 

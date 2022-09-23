@@ -175,7 +175,7 @@ void Server::ListeningAcoustic(){
     chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
     chrono::steady_clock::time_point prev = std::chrono::steady_clock::now();
     double gap = std::chrono::duration_cast<std::chrono::duration<double> >(now - start_time).count();
-    while(gap < 5){
+    while(gap < 300){
         if (std::chrono::duration_cast<std::chrono::duration<double> >(now - prev).count()<1){
             usleep(10000); 
             now = std::chrono::steady_clock::now();
@@ -187,6 +187,7 @@ void Server::ListeningAcoustic(){
             //if (client->id_ == 2)
                 usleep(1000000); // emit signal in an interval of 1 second 
         }
+        usleep(2000000); // sleep several seconds between each round
         now = std::chrono::steady_clock::now();
         prev = std::chrono::steady_clock::now();
         gap = std::chrono::duration_cast<std::chrono::duration<double> >(now - start_time).count();
@@ -236,6 +237,14 @@ bool Server::CheckAcoustic(){
 vector<double> Server::CalAcoustic(){
     vector<double> distances; 
     for (int i=0;i<max_client_num;i++){
+        cv::Mat o_pose; 
+        int idx = clients[i]->getLatestTraj(o_pose); // the trajectory could be empty matrix, handling that
+        if (idx == -1) //handle invalid pose, e.g., has not been initialized
+            continue;
+        double ts1 = clients[i]->getLatestTS(); 
+        cv::Mat R = o_pose.rowRange(0, 3).colRange(0, 3).t();
+        cv::Mat t = -R * o_pose.rowRange(0, 3).col(3);
+        Eigen::Vector3d pose1(t.at<float>(0),t.at<float>(1),t.at<float>(2)); 
         for (int j=i+1;j<max_client_num;j++){
             int n1 = clients[i]->intervals[j].front();
             clients[i]->intervals[j].pop();
@@ -243,8 +252,26 @@ vector<double> Server::CalAcoustic(){
             clients[j]->intervals[i].pop();
             double distance = (speedOfSound * (n1+n2)) / (2 * sample_rate) + kdistance;
             cout << "sample client " << i << ": " << n1 << " and client " << j << ": " << n2 << ", distance is " << distance << endl;  
-            if (i == 0 && distance > 0 && distance < 4) // ignore obviously wrong distances
-                distances.push_back(distance); 
+            if (distance > 0 && distance < 4) { // ignore obviously wrong distances 
+                if (i == 0)
+                    distances.push_back(distance); 
+                else {
+                    int idx = clients[j]->getLatestTraj(o_pose); // the trajectory could be empty matrix, handling that
+                    if (idx == -1) //handle invalid pose, e.g., has not been initialized
+                        continue;
+                    double ts2 = clients[j]->getLatestTS(); 
+                    R = o_pose.rowRange(0, 3).colRange(0, 3).t();
+                    t = -R * o_pose.rowRange(0, 3).col(3);
+                    Eigen::Vector3d pose2(t.at<float>(0),t.at<float>(1),t.at<float>(2)); 
+                    hist_poses_1.push_back(pose1);
+                    hist_poses_2.push_back(pose2);
+                    hist_users_1.push_back(i);
+                    hist_users_2.push_back(j); 
+                    hist_TS_1.push_back(ts1); 
+                    hist_TS_2.push_back(ts2); 
+                    hist_distances.push_back(distance); 
+                }
+            }
         } 
     }
     return distances; 

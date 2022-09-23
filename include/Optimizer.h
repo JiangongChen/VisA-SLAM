@@ -60,6 +60,8 @@ public:
     void static PoseOptimizationDistance(Frame *pFrame, vector<g2o::SE3Quat> groundTruth); 
     void static PoseOptimizationDistance(Eigen::Vector3d &pose_est, Eigen::Vector3d &pose_gt, cv::RNG *rng=NULL); 
     void static PoseOptimizationDistanceWithScale(Eigen::Vector3d &pose_est, double &scale, vector<Eigen::Vector3d> pose_others, vector<double> distances); 
+    void static PoseOptimizationScale(vector<Eigen::Vector3d> poses_1, vector<Eigen::Vector3d> poses_2, vector<double> distances, double &scale); 
+    void static PoseOptimizationDistanceGivenScale(Eigen::Vector3d &pose_est, double scale, vector<Eigen::Vector3d> pose_others, vector<double> distances); 
 };
 
 
@@ -171,6 +173,81 @@ private:
     Eigen::Vector3d _pos; // position of the other user
 };
 
+
+// unit edge with pose, considering distance
+class EdgeDistS : public g2o::BaseUnaryEdge<1, double, VertexTran> {
+public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
+
+    EdgeDistS(Eigen::Vector3d pos, double scale): BaseUnaryEdge(), _pos(pos), _scale(scale)
+    {}
+
+    virtual void computeError() override {
+        const VertexTran* v = static_cast<VertexTran*>(_vertices[0]);
+        Eigen::Vector3d T = v->estimate();
+        //cout << "T " << T << endl;
+        double s = _scale; 
+        _error(0, 0) = _measurement - s*sqrt((T-_pos).dot(T-_pos));
+        
+        //cout << "measure " << _measurement << endl;
+        //cout << "calculate error " << _error << endl; 
+    }
+    
+    /*virtual void linearizeOplus() override {
+        const VertexTran* v = static_cast<VertexTran*>(_vertices[0]);
+        Vector3d T = v->estimate();
+        double s = _scale(); 
+        _jacobianOplusXi[0] = (-2 * s * s * (T(0, 0)-_pos(0,0)));
+        _jacobianOplusXi[1] = (-2 * s * s * (T(1, 0)-_pos(1,0)));
+        _jacobianOplusXi[2] = (-2 * s * s * (T(2, 0)-_pos(2,0)));
+        _jacobianOplusXj[0] = -2 * s * (T-_pos).dot(T-_pos);
+    }*/
+    
+    virtual bool read(std::istream& in) override { return true; }
+
+    virtual bool write(std::ostream& out) const override { return true; }
+
+private:
+  Eigen::Vector3d _pos; // position of the other user
+  double _scale; // scale
+};
+
+
+// unit edge with scale, considering distance
+class EdgeScale : public g2o::BaseUnaryEdge<1, double, VertexScale> {
+public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
+
+    EdgeScale(Eigen::Vector3d pos, Eigen::Vector3d pos2): BaseUnaryEdge(), _pos(pos), _pos2(pos2)
+    {}
+
+    virtual void computeError() override {
+        const VertexScale* v = static_cast<VertexScale*>(_vertices[0]);
+        double s = v->estimate(); 
+        _error(0, 0) = _measurement - s*sqrt((_pos-_pos2).dot(_pos-_pos2));
+        
+        //cout << "measure " << _measurement << endl;
+        //cout << "calculate error " << _error << endl; 
+    }
+    
+    /*virtual void linearizeOplus() override {
+        const VertexTran* v = static_cast<VertexTran*>(_vertices[0]);
+        Vector3d T = v->estimate();
+        double s = _scale(); 
+        _jacobianOplusXi[0] = (-2 * s * s * (T(0, 0)-_pos(0,0)));
+        _jacobianOplusXi[1] = (-2 * s * s * (T(1, 0)-_pos(1,0)));
+        _jacobianOplusXi[2] = (-2 * s * s * (T(2, 0)-_pos(2,0)));
+        _jacobianOplusXj[0] = -2 * s * (T-_pos).dot(T-_pos);
+    }*/
+    
+    virtual bool read(std::istream& in) override { return true; }
+
+    virtual bool write(std::ostream& out) const override { return true; }
+
+private:
+  Eigen::Vector3d _pos; // position of user 1
+  Eigen::Vector3d _pos2; // position of user 2
+};
 
 
 } //namespace ORB_SLAM

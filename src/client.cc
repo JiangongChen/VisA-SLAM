@@ -203,7 +203,7 @@ void Client::updateTraj(cv::Mat tcw, double ttrack, double timeStamp, int gt_id)
     trajectory_gt_points.push_back(gt_id);
 }
 
- int Client::getLatestTraj(cv::Mat &mat){
+int Client::getLatestTraj(cv::Mat &mat){
     unique_lock<mutex> lock(mMutexClient);
     int size = trajectory.size()-1; 
     while(size>=0){
@@ -212,6 +212,15 @@ void Client::updateTraj(cv::Mat tcw, double ttrack, double timeStamp, int gt_id)
         size--; 
     }
     return size;  
+}
+
+double Client::getLatestTS(){
+    unique_lock<mutex> lock(mMutexClient);
+    int size = vTimestamps.size()-1; 
+    if (size>=0){
+        return vTimestamps[size];  
+    }
+    return -1;  
 }
 
 void Client::rewriteTraj(int poseId, cv::Mat mat){

@@ -65,6 +65,15 @@ public:
     int sample_rate;
     double kdistance; 
     double est_scale; 
+
+    vector<Eigen::Vector3d> hist_poses_1; 
+    vector<Eigen::Vector3d> hist_poses_2; 
+    vector<int> hist_users_1; 
+    vector<int> hist_users_2; 
+    vector<double> hist_TS_1; 
+    vector<double> hist_TS_2; 
+    vector<double> hist_distances; 
+    vector<double> hist_scales; 
 }; 
 
 #endif

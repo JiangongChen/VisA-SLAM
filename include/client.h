@@ -56,6 +56,7 @@ public:
     int connfd_,connfd_ac_;
     int nFeaturesInit;
     int nFeatures; 
+    int k_track_; 
     std::thread client_thread_; 
     std::thread acoustic_thread_; 
     std::thread tracking_thread_; 

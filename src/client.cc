@@ -1,7 +1,7 @@
 # include "client.h"
 
 Client::Client(int id, int connfd, const string settingFile, Server* server, int total_c_num):
-id_(id), connfd_(connfd), nFeaturesInit(1000), nFeatures(300), recvFlag(true), recvFlagAcoustic(true), initFlag(true), num_users(total_c_num) {
+id_(id), connfd_(connfd), nFeaturesInit(1000), nFeatures(500), k_track_(5), recvFlag(true), recvFlagAcoustic(true), initFlag(true), num_users(total_c_num) {
     server_ = server; 
     cv::FileStorage fSettings(settingFile, cv::FileStorage::READ);
     float fx = fSettings["Camera.fx"];
@@ -170,6 +170,9 @@ void Client::trackLoop(){
                     std::chrono::monotonic_clock::time_point t1 = std::chrono::monotonic_clock::now();
             #endif
             ORB_SLAM2::Frame* im= GetNewFrame();  
+            // for the users (except user 0) which tracks normally, only track frames every k_track frames
+            if (id_!=0 && !initFlag && im->mnId%k_track_!=0)
+                continue;
             //int clientID = im->clientId; 
             //cout << "client: " << id_ << " frame id: " << im->mnId << " number of feature points: " << im->mvKeys.size() << endl;  
             cv::Mat tcw = server_->system->TrackEdge(im);
